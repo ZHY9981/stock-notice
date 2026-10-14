@@ -87,6 +87,15 @@ $arguments = @(
     ('/out:{0}' -f $output)
 ) + $references + $sources
 
+$icon = Join-Path $srcDir 'app.ico'
+if (Test-Path -LiteralPath $icon) {
+    $arguments += ('/win32icon:{0}' -f $icon)
+    Write-Host 'Embedding app.ico'
+}
+else {
+    Write-Host 'app.ico not found; run tools\make-icon.ps1 to generate it.'
+}
+
 Write-Host 'Compiling StockNotice.exe ...'
 & $csc @arguments
 if ($LASTEXITCODE -ne 0) {

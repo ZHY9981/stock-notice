@@ -35,12 +35,22 @@ stock-notice/
     MarketDataProvider.cs  行情来源（东方财富 / 腾讯）
     AppResources.cs    全部界面颜色与主题（改样式只动这里）
     Models.cs, JsonStateStore.cs, MarketClock.cs, RegistryHelper.cs
+    app.ico            程序图标，由 tools/make-icon.ps1 生成
   tools/
     RuleEngineTests.cs 规则状态机测试
     run-tests.ps1      编译并运行测试
+    make-icon.ps1      生成多尺寸 app.ico
   build.ps1            用 Windows 自带 C# 编译器构建
   run.cmd              构建并启动
   run-demo.cmd         用演示数据启动（不联网）
+```
+
+图标已经嵌进 `StockNotice.exe`，所以桌面快捷方式、任务栏和窗口标题栏显示的是
+同一个图标。改了图标设计之后重新生成即可：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\make-icon.ps1
+powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
 ## 界面样式（主题）
