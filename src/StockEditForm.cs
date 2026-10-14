@@ -9,8 +9,7 @@ namespace StockNotice
         private readonly MarketDataService _marketData;
         private readonly bool _isNew;
         private TextBox _codeTextBox;
-        private TextBox _nameTextBox;
-        private Label _marketLabel;
+        private Label _identifiedLabel;
         private NumericUpDown _upThreshold;
         private NumericUpDown _downThreshold;
         private NumericUpDown _resetMargin;
@@ -19,6 +18,8 @@ namespace StockNotice
         private NumericUpDown _customBasePrice;
         private Label _lookupStatusLabel;
         private Button _lookupButton;
+        private string _identifiedCode;
+        private string _identifiedName;
 
         public StockConfig Stock { get; private set; }
 
@@ -36,7 +37,7 @@ namespace StockNotice
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = AppResources.SS(560, 560);
+            ClientSize = AppResources.SS(560, 520);
             BackColor = AppResources.Surface;
             Font = AppResources.Font(9F, FontStyle.Regular);
 
@@ -86,7 +87,7 @@ namespace StockNotice
             form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(116F)));
             form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(90F)));
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 9; i++)
             {
                 form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(44F)));
             }
@@ -100,42 +101,39 @@ namespace StockNotice
             _lookupButton.Click += LookupButton_Click;
             form.Controls.Add(_lookupButton, 2, 0);
 
-            AddLabel(form, "股票名称", 1);
-            _nameTextBox = CreateTextBox();
-            form.Controls.Add(_nameTextBox, 1, 1);
-            form.SetColumnSpan(_nameTextBox, 2);
+            // Read-only on purpose: the name and market are always derived from
+            // the code or the search box, and the monitor overwrites the stored
+            // name from each quote, so an editable name box would be a lie.
+            AddLabel(form, "识别结果", 1);
+            _identifiedLabel = new Label();
+            _identifiedLabel.TextAlign = ContentAlignment.MiddleLeft;
+            _identifiedLabel.Dock = DockStyle.Fill;
+            _identifiedLabel.AutoEllipsis = true;
+            form.Controls.Add(_identifiedLabel, 1, 1);
+            form.SetColumnSpan(_identifiedLabel, 2);
 
-            AddLabel(form, "市场", 2);
-            _marketLabel = new Label();
-            _marketLabel.Text = "自动识别";
-            _marketLabel.ForeColor = AppResources.Muted;
-            _marketLabel.TextAlign = ContentAlignment.MiddleLeft;
-            _marketLabel.Dock = DockStyle.Fill;
-            form.Controls.Add(_marketLabel, 1, 2);
-            form.SetColumnSpan(_marketLabel, 2);
-
-            AddLabel(form, "上涨阈值", 3);
+            AddLabel(form, "上涨阈值", 2);
             _upThreshold = CreatePercentInput();
-            form.Controls.Add(_upThreshold, 1, 3);
+            form.Controls.Add(_upThreshold, 1, 2);
+            form.Controls.Add(CreateSuffixLabel("达到后开始提醒"), 2, 2);
+
+            AddLabel(form, "下跌阈值", 3);
+            _downThreshold = CreatePercentInput();
+            form.Controls.Add(_downThreshold, 1, 3);
             form.Controls.Add(CreateSuffixLabel("达到后开始提醒"), 2, 3);
 
-            AddLabel(form, "下跌阈值", 4);
-            _downThreshold = CreatePercentInput();
-            form.Controls.Add(_downThreshold, 1, 4);
-            form.Controls.Add(CreateSuffixLabel("达到后开始提醒"), 2, 4);
-
-            AddLabel(form, "重置幅度", 5);
+            AddLabel(form, "重置幅度", 4);
             _resetMargin = CreatePercentInput();
-            form.Controls.Add(_resetMargin, 1, 5);
-            form.Controls.Add(CreateSuffixLabel("回落多少后重置"), 2, 5);
+            form.Controls.Add(_resetMargin, 1, 4);
+            form.Controls.Add(CreateSuffixLabel("回落多少后重置"), 2, 4);
 
-            AddLabel(form, "当日自定义基准", 6);
+            AddLabel(form, "当日自定义基准", 5);
             _customBaseCheckBox = new CheckBox();
             _customBaseCheckBox.Text = "启用";
             _customBaseCheckBox.AutoSize = true;
             _customBaseCheckBox.ForeColor = AppResources.Text;
             _customBaseCheckBox.CheckedChanged += CustomBaseCheckBox_CheckedChanged;
-            form.Controls.Add(_customBaseCheckBox, 1, 6);
+            form.Controls.Add(_customBaseCheckBox, 1, 5);
 
             _customBasePrice = new NumericUpDown();
             _customBasePrice.DecimalPlaces = 3;
@@ -146,14 +144,14 @@ namespace StockNotice
             _customBasePrice.Dock = DockStyle.Fill;
             _customBasePrice.Font = AppResources.Font(10F, FontStyle.Regular);
             _customBasePrice.Enabled = false;
-            form.Controls.Add(_customBasePrice, 2, 6);
+            form.Controls.Add(_customBasePrice, 2, 5);
 
-            AddLabel(form, "监控状态", 7);
+            AddLabel(form, "监控状态", 6);
             _enabledCheckBox = new CheckBox();
             _enabledCheckBox.Text = "启用这只股票";
             _enabledCheckBox.AutoSize = true;
             _enabledCheckBox.ForeColor = AppResources.Text;
-            form.Controls.Add(_enabledCheckBox, 1, 7);
+            form.Controls.Add(_enabledCheckBox, 1, 6);
             form.SetColumnSpan(_enabledCheckBox, 2);
 
             _lookupStatusLabel = new Label();
@@ -163,7 +161,7 @@ namespace StockNotice
             _lookupStatusLabel.AutoSize = false;
             _lookupStatusLabel.Dock = DockStyle.Fill;
             _lookupStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
-            form.Controls.Add(_lookupStatusLabel, 0, 8);
+            form.Controls.Add(_lookupStatusLabel, 0, 7);
             form.SetColumnSpan(_lookupStatusLabel, 3);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
@@ -178,7 +176,7 @@ namespace StockNotice
             Button cancel = CreateSecondaryButton("取消");
             cancel.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
             buttons.Controls.Add(cancel);
-            form.Controls.Add(buttons, 0, 9);
+            form.Controls.Add(buttons, 0, 8);
             form.SetColumnSpan(buttons, 3);
 
             root.Controls.Add(form, 0, 1);
@@ -282,8 +280,9 @@ namespace StockNotice
         private void LoadStock()
         {
             _codeTextBox.Text = Stock.Code;
-            _nameTextBox.Text = Stock.Name;
-            _marketLabel.Text = MarketNames.Display(Stock.Market);
+            _identifiedCode = Stock.Code;
+            _identifiedName = Stock.Name;
+            UpdateIdentifiedLabel();
             _upThreshold.Value = Clamp(Stock.UpThreshold, _upThreshold.Minimum, _upThreshold.Maximum);
             _downThreshold.Value = Clamp(Stock.DownThreshold, _downThreshold.Minimum, _downThreshold.Maximum);
             _resetMargin.Value = Clamp(Stock.ResetMargin, _resetMargin.Minimum, _resetMargin.Maximum);
@@ -295,6 +294,23 @@ namespace StockNotice
             }
             _customBasePrice.Enabled = _customBaseCheckBox.Checked;
             UpdateBaseHint();
+        }
+
+        private void UpdateIdentifiedLabel()
+        {
+            bool named = !string.IsNullOrEmpty(Stock.Name)
+                && !string.Equals(Stock.Name, Stock.Code, StringComparison.Ordinal);
+
+            if (named)
+            {
+                _identifiedLabel.Text = Stock.Name + " · " + MarketNames.Display(Stock.Market);
+                _identifiedLabel.ForeColor = AppResources.Text;
+            }
+            else
+            {
+                _identifiedLabel.Text = "尚未识别 · 点“查询”按代码或名称识别";
+                _identifiedLabel.ForeColor = AppResources.Muted;
+            }
         }
 
         private static decimal Clamp(decimal value, decimal minimum, decimal maximum)
@@ -381,11 +397,12 @@ namespace StockNotice
             if (quote != null && quote.IsValid)
             {
                 _codeTextBox.Text = quote.Code;
-                _nameTextBox.Text = quote.Name;
-                _marketLabel.Text = MarketNames.Display(quote.Market);
                 Stock.Code = quote.Code;
                 Stock.Market = quote.Market;
                 Stock.Name = quote.Name;
+                _identifiedCode = quote.Code;
+                _identifiedName = quote.Name;
+                UpdateIdentifiedLabel();
                 SetStatus(
                     "查询成功：最新价 " + AppResources.FormatPrice(quote.Price)
                         + "，昨日收盘 " + AppResources.FormatPrice(quote.PreviousClose),
@@ -439,9 +456,13 @@ namespace StockNotice
 
             Stock.Code = normalized.Code;
             Stock.Market = normalized.Market;
-            Stock.Name = string.IsNullOrEmpty(_nameTextBox.Text.Trim())
-                ? normalized.Code
-                : _nameTextBox.Text.Trim();
+            // Only keep the resolved name when it belongs to the code that is
+            // actually being saved; otherwise the user edited the code after the
+            // last lookup and the stale name would follow the wrong stock.
+            bool resolvedForThisCode = !string.IsNullOrEmpty(_identifiedCode)
+                && string.Equals(_identifiedCode, normalized.Code, StringComparison.Ordinal)
+                && !string.IsNullOrEmpty(_identifiedName);
+            Stock.Name = resolvedForThisCode ? _identifiedName : normalized.Code;
             Stock.UpThreshold = up;
             Stock.DownThreshold = down;
             Stock.ResetMargin = margin;
