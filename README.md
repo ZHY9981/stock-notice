@@ -1,5 +1,7 @@
 # 股票涨跌提醒（Stock Notice）
 
+[![build](https://github.com/ZHY9981/stock-notice/actions/workflows/build.yml/badge.svg)](https://github.com/ZHY9981/stock-notice/actions/workflows/build.yml)
+
 Windows 桌面 A 股涨跌提醒程序。监控指定股票的涨跌幅，达到设定阈值后通过
 Windows 系统通知提醒，点击通知可回到主窗口并定位到对应股票。
 
