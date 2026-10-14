@@ -1,0 +1,401 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace StockNotice
+{
+    public class StockEditForm : Form
+    {
+        private readonly MarketDataService _marketData;
+        private readonly bool _isNew;
+        private TextBox _codeTextBox;
+        private TextBox _nameTextBox;
+        private Label _marketLabel;
+        private NumericUpDown _upThreshold;
+        private NumericUpDown _downThreshold;
+        private NumericUpDown _resetMargin;
+        private CheckBox _enabledCheckBox;
+        private CheckBox _customBaseCheckBox;
+        private NumericUpDown _customBasePrice;
+        private Label _lookupStatusLabel;
+        private Button _lookupButton;
+
+        public StockConfig Stock { get; private set; }
+
+        public StockEditForm(MarketDataService marketData, StockConfig existing)
+        {
+            _marketData = marketData;
+            _isNew = existing == null;
+            Stock = existing == null ? new StockConfig() : existing;
+
+            Text = _isNew ? "添加股票" : "编辑股票";
+            Icon = AppResources.CreateAppIcon();
+            StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ShowInTaskbar = false;
+            ClientSize = new Size(560, 560);
+            BackColor = AppResources.Surface;
+            Font = AppResources.Font(9F, FontStyle.Regular);
+
+            BuildInterface();
+            LoadStock();
+        }
+
+        private void BuildInterface()
+        {
+            Panel header = new Panel();
+            header.Dock = DockStyle.Top;
+            header.Height = 74;
+            header.BackColor = AppResources.Header;
+
+            Label title = new Label();
+            title.Text = _isNew ? "添加监控股票" : "编辑监控股票";
+            title.ForeColor = AppResources.HeaderText;
+            title.Font = AppResources.Font(15F, FontStyle.Bold);
+            title.AutoSize = true;
+            title.Location = new Point(24, 13);
+            header.Controls.Add(title);
+
+            Label subtitle = new Label();
+            subtitle.Text = "上涨、下跌阈值按百分比填写，重置幅度用于开启新一轮通知";
+            subtitle.ForeColor = AppResources.HeaderMuted;
+            subtitle.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            subtitle.AutoSize = true;
+            subtitle.Location = new Point(25, 45);
+            header.Controls.Add(subtitle);
+            Controls.Add(header);
+
+            TableLayoutPanel form = new TableLayoutPanel();
+            form.Dock = DockStyle.Fill;
+            form.Padding = new Padding(24, 20, 24, 12);
+            form.ColumnCount = 3;
+            form.RowCount = 10;
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116F));
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F));
+            for (int i = 0; i < 10; i++)
+            {
+                form.RowStyles.Add(new RowStyle(SizeType.Absolute, 44F));
+            }
+
+            AddLabel(form, "股票代码", 0);
+            _codeTextBox = CreateTextBox();
+            _codeTextBox.CharacterCasing = CharacterCasing.Upper;
+            form.Controls.Add(_codeTextBox, 1, 0);
+
+            _lookupButton = CreateActionButton("查询");
+            _lookupButton.Click += LookupButton_Click;
+            form.Controls.Add(_lookupButton, 2, 0);
+
+            AddLabel(form, "股票名称", 1);
+            _nameTextBox = CreateTextBox();
+            form.Controls.Add(_nameTextBox, 1, 1);
+            form.SetColumnSpan(_nameTextBox, 2);
+
+            AddLabel(form, "市场", 2);
+            _marketLabel = new Label();
+            _marketLabel.Text = "自动识别";
+            _marketLabel.ForeColor = AppResources.Muted;
+            _marketLabel.TextAlign = ContentAlignment.MiddleLeft;
+            _marketLabel.Dock = DockStyle.Fill;
+            form.Controls.Add(_marketLabel, 1, 2);
+            form.SetColumnSpan(_marketLabel, 2);
+
+            AddLabel(form, "上涨阈值", 3);
+            _upThreshold = CreatePercentInput();
+            form.Controls.Add(_upThreshold, 1, 3);
+            form.Controls.Add(CreateSuffixLabel("达到后开始提醒"), 2, 3);
+
+            AddLabel(form, "下跌阈值", 4);
+            _downThreshold = CreatePercentInput();
+            form.Controls.Add(_downThreshold, 1, 4);
+            form.Controls.Add(CreateSuffixLabel("达到后开始提醒"), 2, 4);
+
+            AddLabel(form, "重置幅度", 5);
+            _resetMargin = CreatePercentInput();
+            form.Controls.Add(_resetMargin, 1, 5);
+            form.Controls.Add(CreateSuffixLabel("回落多少后重置"), 2, 5);
+
+            AddLabel(form, "当日自定义基准", 6);
+            _customBaseCheckBox = new CheckBox();
+            _customBaseCheckBox.Text = "启用";
+            _customBaseCheckBox.AutoSize = true;
+            _customBaseCheckBox.ForeColor = AppResources.Text;
+            _customBaseCheckBox.CheckedChanged += CustomBaseCheckBox_CheckedChanged;
+            form.Controls.Add(_customBaseCheckBox, 1, 6);
+
+            _customBasePrice = new NumericUpDown();
+            _customBasePrice.DecimalPlaces = 3;
+            _customBasePrice.Increment = 0.01m;
+            _customBasePrice.Minimum = 0.001m;
+            _customBasePrice.Maximum = 100000m;
+            _customBasePrice.Value = 1m;
+            _customBasePrice.Dock = DockStyle.Fill;
+            _customBasePrice.Font = AppResources.Font(10F, FontStyle.Regular);
+            _customBasePrice.Enabled = false;
+            form.Controls.Add(_customBasePrice, 2, 6);
+
+            AddLabel(form, "监控状态", 7);
+            _enabledCheckBox = new CheckBox();
+            _enabledCheckBox.Text = "启用这只股票";
+            _enabledCheckBox.AutoSize = true;
+            _enabledCheckBox.ForeColor = AppResources.Text;
+            form.Controls.Add(_enabledCheckBox, 1, 7);
+            form.SetColumnSpan(_enabledCheckBox, 2);
+
+            _lookupStatusLabel = new Label();
+            _lookupStatusLabel.Text = "输入代码后点击“查询”，自动获取股票名称和昨日收盘价。";
+            _lookupStatusLabel.ForeColor = AppResources.Muted;
+            _lookupStatusLabel.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            _lookupStatusLabel.AutoSize = false;
+            _lookupStatusLabel.Dock = DockStyle.Fill;
+            _lookupStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
+            form.Controls.Add(_lookupStatusLabel, 0, 8);
+            form.SetColumnSpan(_lookupStatusLabel, 3);
+
+            FlowLayoutPanel buttons = new FlowLayoutPanel();
+            buttons.Dock = DockStyle.Fill;
+            buttons.FlowDirection = FlowDirection.RightToLeft;
+            buttons.WrapContents = false;
+
+            Button save = CreatePrimaryButton("保存");
+            save.Click += SaveButton_Click;
+            buttons.Controls.Add(save);
+
+            Button cancel = CreateSecondaryButton("取消");
+            cancel.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
+            buttons.Controls.Add(cancel);
+            form.Controls.Add(buttons, 0, 9);
+            form.SetColumnSpan(buttons, 3);
+
+            Controls.Add(form);
+            header.BringToFront();
+
+            AcceptButton = save;
+            CancelButton = cancel;
+        }
+
+        private static void AddLabel(TableLayoutPanel form, string text, int row)
+        {
+            Label label = new Label();
+            label.Text = text;
+            label.ForeColor = AppResources.Text;
+            label.Font = AppResources.Font(9F, FontStyle.Bold);
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.Dock = DockStyle.Fill;
+            form.Controls.Add(label, 0, row);
+        }
+
+        private static TextBox CreateTextBox()
+        {
+            TextBox textBox = new TextBox();
+            textBox.Dock = DockStyle.Fill;
+            textBox.Font = AppResources.Font(10F, FontStyle.Regular);
+            textBox.BorderStyle = BorderStyle.FixedSingle;
+            return textBox;
+        }
+
+        private static NumericUpDown CreatePercentInput()
+        {
+            NumericUpDown input = new NumericUpDown();
+            input.DecimalPlaces = 2;
+            input.Increment = 0.1m;
+            input.Minimum = 0.01m;
+            input.Maximum = 30m;
+            input.Dock = DockStyle.Fill;
+            input.Font = AppResources.Font(10F, FontStyle.Regular);
+            return input;
+        }
+
+        private static Label CreateSuffixLabel(string text)
+        {
+            Label label = new Label();
+            label.Text = text;
+            label.ForeColor = AppResources.Muted;
+            label.Font = AppResources.Font(8F, FontStyle.Regular);
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.Dock = DockStyle.Fill;
+            return label;
+        }
+
+        private static Button CreateActionButton(string text)
+        {
+            Button button = new Button();
+            button.Text = text;
+            button.Dock = DockStyle.Fill;
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderColor = AppResources.ButtonBorder;
+            button.BackColor = AppResources.FieldBackground;
+            button.ForeColor = AppResources.Text;
+            button.Font = AppResources.Font(9F, FontStyle.Bold);
+            button.Cursor = Cursors.Hand;
+            button.UseVisualStyleBackColor = false;
+            return button;
+        }
+
+        private static Button CreatePrimaryButton(string text)
+        {
+            Button button = new Button();
+            button.Text = text;
+            button.Width = 92;
+            button.Height = 38;
+            button.Margin = new Padding(8, 0, 0, 0);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = AppResources.Accent;
+            button.ForeColor = AppResources.OnAccent;
+            button.Font = AppResources.Font(9F, FontStyle.Bold);
+            button.Cursor = Cursors.Hand;
+            button.UseVisualStyleBackColor = false;
+            return button;
+        }
+
+        private static Button CreateSecondaryButton(string text)
+        {
+            Button button = new Button();
+            button.Text = text;
+            button.Width = 82;
+            button.Height = 38;
+            button.Margin = new Padding(8, 0, 0, 0);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderColor = AppResources.ButtonBorder;
+            button.BackColor = AppResources.Surface;
+            button.ForeColor = AppResources.Text;
+            button.Font = AppResources.Font(9F, FontStyle.Bold);
+            button.Cursor = Cursors.Hand;
+            button.UseVisualStyleBackColor = false;
+            return button;
+        }
+
+        private void LoadStock()
+        {
+            _codeTextBox.Text = Stock.Code;
+            _nameTextBox.Text = Stock.Name;
+            _marketLabel.Text = MarketNames.Display(Stock.Market);
+            _upThreshold.Value = Clamp(Stock.UpThreshold, _upThreshold.Minimum, _upThreshold.Maximum);
+            _downThreshold.Value = Clamp(Stock.DownThreshold, _downThreshold.Minimum, _downThreshold.Maximum);
+            _resetMargin.Value = Clamp(Stock.ResetMargin, _resetMargin.Minimum, _resetMargin.Maximum);
+            _enabledCheckBox.Checked = Stock.Enabled;
+            _customBaseCheckBox.Checked = Stock.CustomBaseEnabled;
+            if (Stock.CustomBasePrice >= _customBasePrice.Minimum)
+            {
+                _customBasePrice.Value = Math.Min(Stock.CustomBasePrice, _customBasePrice.Maximum);
+            }
+            _customBasePrice.Enabled = _customBaseCheckBox.Checked;
+            UpdateBaseHint();
+        }
+
+        private static decimal Clamp(decimal value, decimal minimum, decimal maximum)
+        {
+            if (value < minimum) return minimum;
+            if (value > maximum) return maximum;
+            return value;
+        }
+
+        private void CustomBaseCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            _customBasePrice.Enabled = _customBaseCheckBox.Checked;
+        }
+
+        private async void LookupButton_Click(object sender, EventArgs e)
+        {
+            _lookupButton.Enabled = false;
+            _lookupButton.Text = "查询中";
+            _lookupStatusLabel.ForeColor = AppResources.Muted;
+            _lookupStatusLabel.Text = "正在从免费行情源获取最新行情...";
+
+            try
+            {
+                Quote quote = await _marketData.LookupAsync(_codeTextBox.Text);
+                if (quote != null && quote.IsValid)
+                {
+                    _codeTextBox.Text = quote.Code;
+                    _nameTextBox.Text = quote.Name;
+                    _marketLabel.Text = MarketNames.Display(quote.Market);
+                    Stock.Code = quote.Code;
+                    Stock.Market = quote.Market;
+                    Stock.Name = quote.Name;
+                    _lookupStatusLabel.ForeColor = AppResources.Down;
+                    _lookupStatusLabel.Text = "查询成功：最新价 " + AppResources.FormatPrice(quote.Price)
+                        + "，昨日收盘 " + AppResources.FormatPrice(quote.PreviousClose);
+                }
+                else
+                {
+                    _lookupStatusLabel.ForeColor = AppResources.Up;
+                    _lookupStatusLabel.Text = quote == null || string.IsNullOrEmpty(quote.Error)
+                        ? "未查询到行情，请检查代码或网络。"
+                        : quote.Error;
+                }
+            }
+            catch (Exception ex)
+            {
+                _lookupStatusLabel.ForeColor = AppResources.Up;
+                _lookupStatusLabel.Text = "查询失败：" + ex.Message;
+            }
+            finally
+            {
+                _lookupButton.Enabled = true;
+                _lookupButton.Text = "查询";
+            }
+        }
+
+        private void SaveButton_Click(object sender, EventArgs e)
+        {
+            StockConfig normalized;
+            string error;
+            if (!MarketDataService.TryNormalizeStock(_codeTextBox.Text, out normalized, out error))
+            {
+                ShowError(error);
+                return;
+            }
+
+            decimal up = _upThreshold.Value;
+            decimal down = _downThreshold.Value;
+            decimal margin = _resetMargin.Value;
+            if (margin >= up || margin >= down)
+            {
+                ShowError("重置幅度必须小于上涨阈值和下跌阈值。");
+                return;
+            }
+
+            if (_customBaseCheckBox.Checked && _customBasePrice.Value <= 0m)
+            {
+                ShowError("自定义基准价必须大于 0。");
+                return;
+            }
+
+            Stock.Code = normalized.Code;
+            Stock.Market = normalized.Market;
+            Stock.Name = string.IsNullOrEmpty(_nameTextBox.Text.Trim())
+                ? normalized.Code
+                : _nameTextBox.Text.Trim();
+            Stock.UpThreshold = up;
+            Stock.DownThreshold = down;
+            Stock.ResetMargin = margin;
+            Stock.Enabled = _enabledCheckBox.Checked;
+            Stock.CustomBaseEnabled = _customBaseCheckBox.Checked;
+            Stock.CustomBasePrice = _customBaseCheckBox.Checked ? _customBasePrice.Value : 0m;
+            Stock.CustomBaseDate = _customBaseCheckBox.Checked
+                ? MarketClock.TodayKey()
+                : string.Empty;
+
+            DialogResult = DialogResult.OK;
+            Close();
+        }
+
+        private void UpdateBaseHint()
+        {
+            if (Stock.CustomBaseEnabled && Stock.CustomBaseDate == MarketClock.TodayKey())
+            {
+                _lookupStatusLabel.Text = "当前使用今日自定义基准价；次日自动恢复为新的昨日收盘价。";
+            }
+        }
+
+        private void ShowError(string message)
+        {
+            MessageBox.Show(this, message, "输入有误", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+}

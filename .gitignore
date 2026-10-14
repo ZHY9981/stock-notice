@@ -1,0 +1,21 @@
+# Build output
+build/
+bin/
+obj/
+
+# Local settings and runtime data
+data/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Binaries (shipped via releases, not commits)
+*.exe
+*.pdb
+*.dll
+
+# OS / editor noise
+Thumbs.db
+Desktop.ini
+*.log

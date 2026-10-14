@@ -1,0 +1,19 @@
+# Normalise line endings in the repository.
+* text=auto
+
+# Windows scripts must keep CRLF so cmd.exe and PowerShell stay happy.
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+
+# Source files
+*.cs   text diff=csharp
+*.xml  text
+*.json text
+*.md   text
+
+# Binary assets
+*.png  binary
+*.ico  binary
+*.exe  binary
+*.dll  binary
