@@ -30,12 +30,13 @@ namespace StockNotice
 
             Text = _isNew ? "添加股票" : "编辑股票";
             Icon = AppResources.CreateAppIcon();
+            AutoScaleMode = AutoScaleMode.None;
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(560, 560);
+            ClientSize = AppResources.SS(560, 560);
             BackColor = AppResources.Surface;
             Font = AppResources.Font(9F, FontStyle.Regular);
 
@@ -45,9 +46,19 @@ namespace StockNotice
 
         private void BuildInterface()
         {
+            // Header and form live in a two-row root panel. Adding both straight
+            // to the form would let the Fill-docked table take the whole client
+            // area and hide its first row underneath the header.
+            TableLayoutPanel root = new TableLayoutPanel();
+            root.Dock = DockStyle.Fill;
+            root.ColumnCount = 1;
+            root.RowCount = 2;
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(74F)));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            Controls.Add(root);
+
             Panel header = new Panel();
-            header.Dock = DockStyle.Top;
-            header.Height = 74;
+            header.Dock = DockStyle.Fill;
             header.BackColor = AppResources.Header;
 
             Label title = new Label();
@@ -55,7 +66,7 @@ namespace StockNotice
             title.ForeColor = AppResources.HeaderText;
             title.Font = AppResources.Font(15F, FontStyle.Bold);
             title.AutoSize = true;
-            title.Location = new Point(24, 13);
+            title.Location = AppResources.SP(24, 13);
             header.Controls.Add(title);
 
             Label subtitle = new Label();
@@ -63,24 +74,24 @@ namespace StockNotice
             subtitle.ForeColor = AppResources.HeaderMuted;
             subtitle.Font = AppResources.Font(8.5F, FontStyle.Regular);
             subtitle.AutoSize = true;
-            subtitle.Location = new Point(25, 45);
+            subtitle.Location = AppResources.SP(25, 45);
             header.Controls.Add(subtitle);
-            Controls.Add(header);
+            root.Controls.Add(header, 0, 0);
 
             TableLayoutPanel form = new TableLayoutPanel();
             form.Dock = DockStyle.Fill;
-            form.Padding = new Padding(24, 20, 24, 12);
+            form.Padding = AppResources.SPad(24, 20, 24, 12);
             form.ColumnCount = 3;
             form.RowCount = 10;
-            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116F));
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(116F)));
             form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F));
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(90F)));
             for (int i = 0; i < 10; i++)
             {
-                form.RowStyles.Add(new RowStyle(SizeType.Absolute, 44F));
+                form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(44F)));
             }
 
-            AddLabel(form, "股票代码", 0);
+            AddLabel(form, "代码 / 名称", 0);
             _codeTextBox = CreateTextBox();
             _codeTextBox.CharacterCasing = CharacterCasing.Upper;
             form.Controls.Add(_codeTextBox, 1, 0);
@@ -146,7 +157,7 @@ namespace StockNotice
             form.SetColumnSpan(_enabledCheckBox, 2);
 
             _lookupStatusLabel = new Label();
-            _lookupStatusLabel.Text = "输入代码后点击“查询”，自动获取股票名称和昨日收盘价。";
+            _lookupStatusLabel.Text = "输入 6 位代码（如 600519）或公司名称（如 贵州茅台），点击“查询”。";
             _lookupStatusLabel.ForeColor = AppResources.Muted;
             _lookupStatusLabel.Font = AppResources.Font(8.5F, FontStyle.Regular);
             _lookupStatusLabel.AutoSize = false;
@@ -170,8 +181,7 @@ namespace StockNotice
             form.Controls.Add(buttons, 0, 9);
             form.SetColumnSpan(buttons, 3);
 
-            Controls.Add(form);
-            header.BringToFront();
+            root.Controls.Add(form, 0, 1);
 
             AcceptButton = save;
             CancelButton = cancel;
@@ -239,9 +249,9 @@ namespace StockNotice
         {
             Button button = new Button();
             button.Text = text;
-            button.Width = 92;
-            button.Height = 38;
-            button.Margin = new Padding(8, 0, 0, 0);
+            button.Width = AppResources.S(92);
+            button.Height = AppResources.S(38);
+            button.Margin = AppResources.SPad(8, 0, 0, 0);
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderSize = 0;
             button.BackColor = AppResources.Accent;
@@ -256,9 +266,9 @@ namespace StockNotice
         {
             Button button = new Button();
             button.Text = text;
-            button.Width = 82;
-            button.Height = 38;
-            button.Margin = new Padding(8, 0, 0, 0);
+            button.Width = AppResources.S(82);
+            button.Height = AppResources.S(38);
+            button.Margin = AppResources.SPad(8, 0, 0, 0);
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderColor = AppResources.ButtonBorder;
             button.BackColor = AppResources.Surface;
@@ -301,44 +311,105 @@ namespace StockNotice
 
         private async void LookupButton_Click(object sender, EventArgs e)
         {
-            _lookupButton.Enabled = false;
-            _lookupButton.Text = "查询中";
-            _lookupStatusLabel.ForeColor = AppResources.Muted;
-            _lookupStatusLabel.Text = "正在从免费行情源获取最新行情...";
+            string raw = _codeTextBox.Text.Trim();
+            if (raw.Length == 0)
+            {
+                SetStatus("先输入股票代码或公司名称，再点“查询”。", AppResources.Up);
+                return;
+            }
+
+            SetBusy(true);
 
             try
             {
-                Quote quote = await _marketData.LookupAsync(_codeTextBox.Text);
-                if (quote != null && quote.IsValid)
+                StockConfig probe;
+                string error;
+                if (MarketDataService.TryNormalizeStock(raw, out probe, out error))
                 {
-                    _codeTextBox.Text = quote.Code;
-                    _nameTextBox.Text = quote.Name;
-                    _marketLabel.Text = MarketNames.Display(quote.Market);
-                    Stock.Code = quote.Code;
-                    Stock.Market = quote.Market;
-                    Stock.Name = quote.Name;
-                    _lookupStatusLabel.ForeColor = AppResources.Down;
-                    _lookupStatusLabel.Text = "查询成功：最新价 " + AppResources.FormatPrice(quote.Price)
-                        + "，昨日收盘 " + AppResources.FormatPrice(quote.PreviousClose);
+                    SetStatus("正在从免费行情源获取最新行情...", AppResources.Muted);
+                    await LookupCodeAsync(raw);
                 }
                 else
                 {
-                    _lookupStatusLabel.ForeColor = AppResources.Up;
-                    _lookupStatusLabel.Text = quote == null || string.IsNullOrEmpty(quote.Error)
-                        ? "未查询到行情，请检查代码或网络。"
-                        : quote.Error;
+                    await SearchByNameAsync(raw);
                 }
             }
             catch (Exception ex)
             {
-                _lookupStatusLabel.ForeColor = AppResources.Up;
-                _lookupStatusLabel.Text = "查询失败：" + ex.Message;
+                SetStatus("查询失败：" + ex.Message, AppResources.Up);
             }
             finally
             {
-                _lookupButton.Enabled = true;
-                _lookupButton.Text = "查询";
+                SetBusy(false);
             }
+        }
+
+        // A name (or partial name / pinyin) is resolved through the suggestion
+        // endpoint; a code goes straight to the quote lookup.
+        private async System.Threading.Tasks.Task SearchByNameAsync(string keyword)
+        {
+            SetStatus("正在按名称搜索 A 股...", AppResources.Muted);
+
+            System.Collections.Generic.List<StockCandidate> candidates = await _marketData.SearchAsync(keyword);
+            if (candidates.Count == 0)
+            {
+                SetStatus("没有找到匹配的 A 股。换个关键词试试，或直接输入 6 位代码。", AppResources.Up);
+                return;
+            }
+
+            StockCandidate chosen = candidates[0];
+            if (candidates.Count > 1)
+            {
+                using (StockPickForm picker = new StockPickForm(candidates, keyword))
+                {
+                    if (picker.ShowDialog(this) != DialogResult.OK || picker.Selected == null)
+                    {
+                        SetStatus("已取消选择。", AppResources.Muted);
+                        return;
+                    }
+                    chosen = picker.Selected;
+                }
+            }
+
+            _codeTextBox.Text = chosen.Code;
+            await LookupCodeAsync(chosen.Code);
+        }
+
+        private async System.Threading.Tasks.Task LookupCodeAsync(string code)
+        {
+            Quote quote = await _marketData.LookupAsync(code);
+            if (quote != null && quote.IsValid)
+            {
+                _codeTextBox.Text = quote.Code;
+                _nameTextBox.Text = quote.Name;
+                _marketLabel.Text = MarketNames.Display(quote.Market);
+                Stock.Code = quote.Code;
+                Stock.Market = quote.Market;
+                Stock.Name = quote.Name;
+                SetStatus(
+                    "查询成功：最新价 " + AppResources.FormatPrice(quote.Price)
+                        + "，昨日收盘 " + AppResources.FormatPrice(quote.PreviousClose),
+                    AppResources.Down);
+                return;
+            }
+
+            SetStatus(
+                quote == null || string.IsNullOrEmpty(quote.Error)
+                    ? "未查询到行情，请检查代码或网络。"
+                    : quote.Error,
+                AppResources.Up);
+        }
+
+        private void SetBusy(bool busy)
+        {
+            _lookupButton.Enabled = !busy;
+            _lookupButton.Text = busy ? "查询中" : "查询";
+        }
+
+        private void SetStatus(string text, Color color)
+        {
+            _lookupStatusLabel.ForeColor = color;
+            _lookupStatusLabel.Text = text;
         }
 
         private void SaveButton_Click(object sender, EventArgs e)

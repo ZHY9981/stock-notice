@@ -34,6 +34,10 @@ namespace StockNotice
 
     public class MarketDataService
     {
+        // Public token used by the East Money web front end; it only gates the
+        // free code/name suggestion endpoint.
+        private const string SuggestToken = "D43BF722C8E33BBDC906FB84D85E326E8";
+
         private static readonly Regex CodeRegex = new Regex(@"^(?<market>SH|SZ|BJ)?(?<code>\d{6})(?:\.(?<suffix>SH|SZ|BJ))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private readonly HttpClient _http;
         private readonly JavaScriptSerializer _serializer;
@@ -140,6 +144,60 @@ namespace StockNotice
             missing.Market = stock.Market;
             missing.Error = result.Error;
             return missing;
+        }
+
+        // Resolves a company name (or partial name, or pinyin initials) to A-share
+        // codes. Only 沪A / 深A / 京A are kept, so funds, indices, HK and
+        // New Third Board listings do not leak into the monitor list.
+        public async Task<List<StockCandidate>> SearchAsync(string keyword)
+        {
+            List<StockCandidate> results = new List<StockCandidate>();
+            if (string.IsNullOrEmpty(keyword)) return results;
+
+            string trimmed = keyword.Trim();
+            if (trimmed.Length == 0) return results;
+
+            string url = "https://searchapi.eastmoney.com/api/suggest/get"
+                + "?input=" + Uri.EscapeDataString(trimmed)
+                + "&type=14&count=20&token=" + SuggestToken;
+
+            string json;
+            using (HttpResponseMessage response = await _http.GetAsync(url))
+            {
+                response.EnsureSuccessStatusCode();
+                json = await response.Content.ReadAsStringAsync();
+            }
+
+            SuggestResponse payload = _serializer.Deserialize<SuggestResponse>(json);
+            if (payload == null || payload.QuotationCodeTable == null || payload.QuotationCodeTable.Data == null)
+            {
+                LastError = "搜索接口未返回数据。";
+                return results;
+            }
+
+            for (int i = 0; i < payload.QuotationCodeTable.Data.Count; i++)
+            {
+                SuggestItem item = payload.QuotationCodeTable.Data[i];
+                if (item == null || string.IsNullOrEmpty(item.Code)) continue;
+                if (!IsAShareType(item.SecurityTypeName)) continue;
+
+                StockCandidate candidate = new StockCandidate();
+                candidate.Code = item.Code.Trim();
+                candidate.Name = string.IsNullOrEmpty(item.Name) ? candidate.Code : item.Name.Trim();
+                candidate.SecurityTypeName = item.SecurityTypeName == null ? string.Empty : item.SecurityTypeName.Trim();
+                candidate.Market = InferMarket(candidate.Code);
+                results.Add(candidate);
+            }
+
+            LastError = results.Count == 0 ? "没有匹配的 A 股。" : string.Empty;
+            return results;
+        }
+
+        private static bool IsAShareType(string securityTypeName)
+        {
+            if (string.IsNullOrEmpty(securityTypeName)) return false;
+            string value = securityTypeName.Trim();
+            return value == "沪A" || value == "深A" || value == "京A";
         }
 
         public static bool TryNormalizeStock(string rawCode, out StockConfig stock, out string error)
@@ -372,6 +430,25 @@ namespace StockNotice
         private class EastMoneyResponse
         {
             public EastMoneyData data { get; set; }
+        }
+
+        private class SuggestResponse
+        {
+            public SuggestTable QuotationCodeTable { get; set; }
+        }
+
+        private class SuggestTable
+        {
+            public List<SuggestItem> Data { get; set; }
+        }
+
+        private class SuggestItem
+        {
+            public string Code { get; set; }
+            public string Name { get; set; }
+            public string Classify { get; set; }
+            public string SecurityTypeName { get; set; }
+            public string MktNum { get; set; }
         }
 
         private class EastMoneyData

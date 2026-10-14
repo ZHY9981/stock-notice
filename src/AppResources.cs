@@ -14,6 +14,11 @@ namespace StockNotice
     {
         public static readonly string ThemeName;
 
+        // Windows 缩放比例（96 DPI = 1.0）。程序声明了高 DPI 感知，字体
+        // 会按点数自动放大，所以所有以像素写死的尺寸都要乘这个系数，
+        // 否则字号变大了、行高没变，文字就会挤在一起。
+        public static readonly float ScaleFactor;
+
         public static readonly Color Background;
         public static readonly Color Surface;
         public static readonly Color Header;
@@ -40,6 +45,8 @@ namespace StockNotice
 
         static AppResources()
         {
+            ScaleFactor = DetectScaleFactor();
+
             string theme = ResolveRequestedTheme();
             ThemeName = theme;
 
@@ -70,6 +77,48 @@ namespace StockNotice
             SessionActive = palette.SessionActive;
             IconCircle = palette.IconCircle;
             IconGlyph = palette.IconGlyph;
+        }
+
+        private static float DetectScaleFactor()
+        {
+            float dpi = 96f;
+            try
+            {
+                using (Graphics graphics = Graphics.FromHwnd(IntPtr.Zero))
+                {
+                    if (graphics.DpiX > 0f) dpi = graphics.DpiX;
+                }
+            }
+            catch
+            {
+                // Fall back to 100% when the display context is unavailable.
+            }
+            return dpi / 96f;
+        }
+
+        public static int S(int value)
+        {
+            return (int)Math.Round(value * ScaleFactor);
+        }
+
+        public static float SF(float value)
+        {
+            return value * ScaleFactor;
+        }
+
+        public static Point SP(int x, int y)
+        {
+            return new Point(S(x), S(y));
+        }
+
+        public static Size SS(int width, int height)
+        {
+            return new Size(S(width), S(height));
+        }
+
+        public static Padding SPad(int left, int top, int right, int bottom)
+        {
+            return new Padding(S(left), S(top), S(right), S(bottom));
         }
 
         private sealed class Palette

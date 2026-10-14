@@ -52,9 +52,10 @@ namespace StockNotice
 
             Text = "股票涨跌提醒";
             Icon = _appIcon;
+            AutoScaleMode = AutoScaleMode.None;
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(1080, 680);
-            Size = new Size(1240, 790);
+            MinimumSize = AppResources.SS(1080, 680);
+            Size = AppResources.SS(1240, 790);
             BackColor = AppResources.Background;
             Font = AppResources.Font(9F, FontStyle.Regular);
 
@@ -87,11 +88,11 @@ namespace StockNotice
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 1;
             root.RowCount = 5;
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(76F)));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(64F)));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(72F)));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(34F)));
             Controls.Add(root);
 
             root.Controls.Add(BuildHeader(), 0, 0);
@@ -106,14 +107,14 @@ namespace StockNotice
             Panel header = new Panel();
             header.Dock = DockStyle.Fill;
             header.BackColor = AppResources.Header;
-            header.Padding = new Padding(24, 14, 20, 10);
+            header.Padding = AppResources.SPad(24, 14, 20, 10);
 
             Label title = new Label();
             title.Text = "A股涨跌提醒";
             title.ForeColor = AppResources.HeaderText;
             title.Font = AppResources.Font(17F, FontStyle.Bold);
             title.AutoSize = true;
-            title.Location = new Point(24, 13);
+            title.Location = AppResources.SP(24, 13);
             header.Controls.Add(title);
 
             Label subtitle = new Label();
@@ -121,7 +122,7 @@ namespace StockNotice
             subtitle.ForeColor = AppResources.HeaderMuted;
             subtitle.Font = AppResources.Font(9F, FontStyle.Regular);
             subtitle.AutoSize = true;
-            subtitle.Location = new Point(26, 46);
+            subtitle.Location = AppResources.SP(26, 46);
             header.Controls.Add(subtitle);
 
             FlowLayoutPanel right = new FlowLayoutPanel();
@@ -129,7 +130,7 @@ namespace StockNotice
             right.FlowDirection = FlowDirection.LeftToRight;
             right.WrapContents = false;
             right.AutoSize = true;
-            right.Padding = new Padding(0, 12, 0, 0);
+            right.Padding = AppResources.SPad(0, 12, 0, 0);
 
             _monitorButton = CreateButton("暂停监控", 112, 36, false);
             _monitorButton.Click += MonitorButton_Click;
@@ -148,7 +149,7 @@ namespace StockNotice
             Panel toolbar = new Panel();
             toolbar.Dock = DockStyle.Fill;
             toolbar.BackColor = AppResources.Surface;
-            toolbar.Padding = new Padding(22, 12, 22, 12);
+            toolbar.Padding = AppResources.SPad(22, 12, 22, 12);
 
             FlowLayoutPanel left = new FlowLayoutPanel();
             left.Dock = DockStyle.Left;
@@ -176,9 +177,10 @@ namespace StockNotice
 
             Label hint = new Label();
             hint.Dock = DockStyle.Right;
+            hint.Width = AppResources.S(150);
             hint.TextAlign = ContentAlignment.MiddleRight;
             hint.ForeColor = AppResources.Muted;
-            hint.Text = "通知点击后会自动定位到对应股票";
+            hint.Text = "通知点击后会自动" + Environment.NewLine + "定位到对应股票";
             hint.Font = AppResources.Font(8.5F, FontStyle.Regular);
             toolbar.Controls.Add(hint);
 
@@ -192,7 +194,7 @@ namespace StockNotice
             stats.ColumnCount = 4;
             stats.RowCount = 1;
             stats.BackColor = AppResources.Background;
-            stats.Padding = new Padding(22, 8, 22, 8);
+            stats.Padding = AppResources.SPad(22, 8, 22, 8);
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
@@ -210,16 +212,16 @@ namespace StockNotice
         {
             Panel block = new Panel();
             block.Dock = DockStyle.Fill;
-            block.Margin = new Padding(0, 0, 10, 0);
+            block.Margin = AppResources.SPad(0, 0, 10, 0);
             block.BackColor = AppResources.Surface;
-            block.Padding = new Padding(14, 7, 14, 6);
+            block.Padding = AppResources.SPad(14, 7, 14, 6);
 
             Label captionLabel = new Label();
             captionLabel.Text = caption;
             captionLabel.ForeColor = AppResources.Muted;
             captionLabel.Font = AppResources.Font(8F, FontStyle.Regular);
             captionLabel.AutoSize = true;
-            captionLabel.Location = new Point(14, 7);
+            captionLabel.Location = AppResources.SP(14, 7);
             block.Controls.Add(captionLabel);
 
             valueLabel = new Label();
@@ -228,7 +230,7 @@ namespace StockNotice
             valueLabel.Font = AppResources.Font(11F, FontStyle.Bold);
             valueLabel.AutoEllipsis = true;
             valueLabel.AutoSize = false;
-            valueLabel.Height = 23;
+            valueLabel.Height = AppResources.S(23);
             valueLabel.Dock = DockStyle.Bottom;
             block.Controls.Add(valueLabel);
             valueLabel.BringToFront();
@@ -240,7 +242,7 @@ namespace StockNotice
         {
             Panel content = new Panel();
             content.Dock = DockStyle.Fill;
-            content.Padding = new Padding(22, 0, 22, 0);
+            content.Padding = AppResources.SPad(22, 0, 22, 0);
             content.BackColor = AppResources.Background;
 
             _tabs = new TabControl();
@@ -249,7 +251,7 @@ namespace StockNotice
             _tabs.Padding = new Point(18, 6);
             _tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
             _tabs.SizeMode = TabSizeMode.Fixed;
-            _tabs.ItemSize = new Size(116, 32);
+            _tabs.ItemSize = AppResources.SS(116, 32);
             _tabs.DrawItem += Tabs_DrawItem;
 
             TabPage stocksTab = new TabPage("监控列表");
@@ -389,9 +391,11 @@ namespace StockNotice
                 Label titleLabel = _emptyPanel.Controls["emptyTitle"] as Label;
                 Label hintLabel = _emptyPanel.Controls["emptyHint"] as Label;
                 if (titleLabel == null || hintLabel == null) return;
-                int centerX = Math.Max(0, (_emptyPanel.ClientSize.Width - 360) / 2);
-                titleLabel.Location = new Point(centerX, Math.Max(60, _emptyPanel.ClientSize.Height / 2 - 32));
-                hintLabel.Location = new Point(centerX, titleLabel.Bottom + 10);
+                int centerX = Math.Max(0, (_emptyPanel.ClientSize.Width - AppResources.S(360)) / 2);
+                titleLabel.Location = new Point(
+                    centerX,
+                    Math.Max(AppResources.S(60), _emptyPanel.ClientSize.Height / 2 - AppResources.S(32)));
+                hintLabel.Location = new Point(centerX, titleLabel.Bottom + AppResources.S(10));
             };
 
             return _emptyPanel;
@@ -402,14 +406,14 @@ namespace StockNotice
             Panel status = new Panel();
             status.Dock = DockStyle.Fill;
             status.BackColor = AppResources.Header;
-            status.Padding = new Padding(22, 0, 22, 0);
+            status.Padding = AppResources.SPad(22, 0, 22, 0);
 
             _sessionLabel = new Label();
             _sessionLabel.Text = "读取交易时段";
             _sessionLabel.ForeColor = AppResources.HeaderText;
             _sessionLabel.Font = AppResources.Font(8.5F, FontStyle.Bold);
             _sessionLabel.AutoSize = true;
-            _sessionLabel.Location = new Point(22, 8);
+            _sessionLabel.Location = AppResources.SP(22, 8);
             status.Controls.Add(_sessionLabel);
 
             _sessionHintLabel = new Label();
@@ -417,14 +421,14 @@ namespace StockNotice
             _sessionHintLabel.ForeColor = AppResources.HeaderMuted;
             _sessionHintLabel.Font = AppResources.Font(8F, FontStyle.Regular);
             _sessionHintLabel.AutoSize = true;
-            _sessionHintLabel.Location = new Point(120, 8);
+            _sessionHintLabel.Location = AppResources.SP(120, 8);
             status.Controls.Add(_sessionHintLabel);
 
             _statusLabel = new Label();
             _statusLabel.Text = "正在初始化";
             _statusLabel.TextAlign = ContentAlignment.MiddleRight;
             _statusLabel.Dock = DockStyle.Right;
-            _statusLabel.Width = 560;
+            _statusLabel.Width = AppResources.S(560);
             _statusLabel.ForeColor = AppResources.HeaderMuted;
             _statusLabel.Font = AppResources.Font(8F, FontStyle.Regular);
             status.Controls.Add(_statusLabel);
@@ -448,9 +452,9 @@ namespace StockNotice
             grid.MultiSelect = false;
             grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             grid.AutoGenerateColumns = false;
-            grid.ColumnHeadersHeight = 40;
+            grid.ColumnHeadersHeight = AppResources.S(40);
             grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            grid.RowTemplate.Height = 42;
+            grid.RowTemplate.Height = AppResources.S(42);
             grid.EnableHeadersVisualStyles = false;
             grid.ColumnHeadersDefaultCellStyle.BackColor = AppResources.GridHeaderBackground;
             grid.ColumnHeadersDefaultCellStyle.ForeColor = AppResources.Muted;
@@ -461,7 +465,7 @@ namespace StockNotice
             grid.DefaultCellStyle.ForeColor = AppResources.Text;
             grid.DefaultCellStyle.SelectionBackColor = AppResources.GridRowSelection;
             grid.DefaultCellStyle.SelectionForeColor = AppResources.Text;
-            grid.DefaultCellStyle.Padding = new Padding(8, 0, 8, 0);
+            grid.DefaultCellStyle.Padding = AppResources.SPad(8, 0, 8, 0);
             grid.AlternatingRowsDefaultCellStyle.BackColor = AppResources.GridAltRow;
             return grid;
         }
@@ -500,9 +504,9 @@ namespace StockNotice
         {
             Button button = new Button();
             button.Text = text;
-            button.Width = width;
-            button.Height = height;
-            button.Margin = new Padding(0, 0, 8, 0);
+            button.Width = AppResources.S(width);
+            button.Height = AppResources.S(height);
+            button.Margin = AppResources.SPad(0, 0, 8, 0);
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderSize = primary ? 0 : 1;
             button.FlatAppearance.BorderColor = AppResources.ButtonBorder;
@@ -807,7 +811,9 @@ namespace StockNotice
             _sessionLabel.ForeColor = session && _state.Settings.MonitoringEnabled
                 ? AppResources.SessionActive
                 : AppResources.HeaderText;
-            _sessionHintLabel.Text = "下一时段 " + MarketClock.GetNextSessionText(now);
+            _sessionHintLabel.Text = "下一时段：" + MarketClock.GetNextSessionText(now);
+            // Keep the hint glued to the right of the (variable width) session text.
+            _sessionHintLabel.Left = _sessionLabel.Right + AppResources.S(12);
             _statusLabel.Text = _monitor.StatusMessage;
             _tray.Text = _state.Settings.MonitoringEnabled ? "股票涨跌提醒 · 监控中" : "股票涨跌提醒 · 已暂停";
         }
@@ -954,7 +960,8 @@ namespace StockNotice
             _sessionLabel.Text = session
                 ? (_state.Settings.MonitoringEnabled ? "交易中 · 监控运行" : "交易中 · 已暂停")
                 : MarketClock.GetSessionText(now) + " · 已暂停检查";
-            _sessionHintLabel.Text = "下一时段 " + MarketClock.GetNextSessionText(now);
+            _sessionHintLabel.Text = "下一时段：" + MarketClock.GetNextSessionText(now);
+            _sessionHintLabel.Left = _sessionLabel.Right + AppResources.S(12);
         }
 
         public void SelectStock(string stockId)

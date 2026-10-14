@@ -96,6 +96,12 @@ else {
     Write-Host 'app.ico not found; run tools\make-icon.ps1 to generate it.'
 }
 
+$manifest = Join-Path $srcDir 'app.manifest'
+if (Test-Path -LiteralPath $manifest) {
+    $arguments += ('/win32manifest:{0}' -f $manifest)
+    Write-Host 'Applying app.manifest (high DPI aware)'
+}
+
 Write-Host 'Compiling StockNotice.exe ...'
 & $csc @arguments
 if ($LASTEXITCODE -ne 0) {

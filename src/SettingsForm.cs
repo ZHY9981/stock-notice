@@ -20,12 +20,13 @@ namespace StockNotice
 
             Text = "设置";
             Icon = AppResources.CreateAppIcon();
+            AutoScaleMode = AutoScaleMode.None;
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(560, 410);
+            ClientSize = AppResources.SS(560, 410);
             BackColor = AppResources.Surface;
             Font = AppResources.Font(9F, FontStyle.Regular);
 
@@ -34,18 +35,28 @@ namespace StockNotice
 
         private void BuildInterface()
         {
+            // Same two-row root panel as the stock editor: without it the
+            // Fill-docked settings table slides under the header and its first
+            // row gets covered.
+            TableLayoutPanel root = new TableLayoutPanel();
+            root.Dock = DockStyle.Fill;
+            root.ColumnCount = 1;
+            root.RowCount = 2;
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(70F)));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            Controls.Add(root);
+
             Panel header = new Panel();
-            header.Dock = DockStyle.Top;
-            header.Height = 70;
+            header.Dock = DockStyle.Fill;
             header.BackColor = AppResources.Header;
-            Controls.Add(header);
+            root.Controls.Add(header, 0, 0);
 
             Label title = new Label();
             title.Text = "运行设置";
             title.ForeColor = AppResources.HeaderText;
             title.Font = AppResources.Font(15F, FontStyle.Bold);
             title.AutoSize = true;
-            title.Location = new Point(24, 12);
+            title.Location = AppResources.SP(24, 12);
             header.Controls.Add(title);
 
             Label subtitle = new Label();
@@ -53,24 +64,23 @@ namespace StockNotice
             subtitle.ForeColor = AppResources.HeaderMuted;
             subtitle.Font = AppResources.Font(8.5F, FontStyle.Regular);
             subtitle.AutoSize = true;
-            subtitle.Location = new Point(25, 44);
+            subtitle.Location = AppResources.SP(25, 44);
             header.Controls.Add(subtitle);
 
             TableLayoutPanel form = new TableLayoutPanel();
             form.Dock = DockStyle.Fill;
-            form.Padding = new Padding(24, 20, 24, 18);
+            form.Padding = AppResources.SPad(24, 20, 24, 18);
             form.ColumnCount = 2;
             form.RowCount = 6;
-            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(150F)));
             form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(48F)));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(48F)));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(48F)));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(58F)));
             form.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 46F));
-            Controls.Add(form);
-            header.BringToFront();
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
+            root.Controls.Add(form, 0, 1);
 
             AddCaption(form, "行情检查间隔", 0);
             Label interval = new Label();
@@ -112,7 +122,7 @@ namespace StockNotice
             note.Font = AppResources.Font(8.5F, FontStyle.Regular);
             note.AutoSize = false;
             note.Dock = DockStyle.Fill;
-            note.Padding = new Padding(0, 10, 0, 0);
+            note.Padding = AppResources.SPad(0, 10, 0, 0);
             form.Controls.Add(note, 0, 4);
             form.SetColumnSpan(note, 2);
 
@@ -157,9 +167,9 @@ namespace StockNotice
         {
             Button button = new Button();
             button.Text = text;
-            button.Width = 92;
-            button.Height = 38;
-            button.Margin = new Padding(8, 0, 0, 0);
+            button.Width = AppResources.S(92);
+            button.Height = AppResources.S(38);
+            button.Margin = AppResources.SPad(8, 0, 0, 0);
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderSize = 0;
             button.BackColor = AppResources.Accent;
@@ -174,9 +184,9 @@ namespace StockNotice
         {
             Button button = new Button();
             button.Text = text;
-            button.Width = 102;
-            button.Height = 38;
-            button.Margin = new Padding(8, 0, 0, 0);
+            button.Width = AppResources.S(102);
+            button.Height = AppResources.S(38);
+            button.Margin = AppResources.SPad(8, 0, 0, 0);
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderColor = AppResources.ButtonBorder;
             button.BackColor = AppResources.Surface;
