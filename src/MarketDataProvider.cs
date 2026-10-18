@@ -32,20 +32,43 @@ namespace StockNotice
         }
     }
 
-    public class MarketDataService
+    public class MarketDataService : IDisposable
     {
         // Public token used by the East Money web front end; it only gates the
         // free code/name suggestion endpoint.
         private const string SuggestToken = "D43BF722C8E33BBDC906FB84D85E326E8";
 
         private static readonly Regex CodeRegex = new Regex(@"^(?<market>SH|SZ|BJ)?(?<code>\d{6})(?:\.(?<suffix>SH|SZ|BJ))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-        private readonly HttpClient _http;
-        private readonly JavaScriptSerializer _serializer;
+        private HttpClient _http;
+        private JavaScriptSerializer _serializer;
+        private List<IMarketQuoteProvider> _providers;
+        private readonly bool _ownsTransport;
 
         public string LastProviderName { get; private set; }
         public string LastError { get; private set; }
 
         public MarketDataService()
+        {
+            _ownsTransport = true;
+            InitializeTransport();
+            _providers = CreateDefaultProviders();
+            LastProviderName = string.Empty;
+            LastError = string.Empty;
+        }
+
+        internal MarketDataService(List<IMarketQuoteProvider> providers)
+        {
+            _ownsTransport = false;
+            _providers = providers == null
+                ? new List<IMarketQuoteProvider>()
+                : new List<IMarketQuoteProvider>(providers);
+            _serializer = new JavaScriptSerializer();
+            _serializer.MaxJsonLength = int.MaxValue;
+            LastProviderName = string.Empty;
+            LastError = string.Empty;
+        }
+
+        private void InitializeTransport()
         {
             try
             {
@@ -69,8 +92,6 @@ namespace StockNotice
 
             _serializer = new JavaScriptSerializer();
             _serializer.MaxJsonLength = int.MaxValue;
-            LastProviderName = string.Empty;
-            LastError = string.Empty;
         }
 
         public async Task<ProviderResult> GetQuotesAsync(List<StockConfig> stocks)
@@ -82,36 +103,28 @@ namespace StockNotice
 
             List<string> errors = new List<string>();
 
-            try
+            for (int i = 0; i < _providers.Count; i++)
             {
-                ProviderResult eastMoney = await GetEastMoneyAsync(stocks);
-                if (eastMoney.Quotes.Count > 0)
+                IMarketQuoteProvider provider = _providers[i];
+                try
                 {
-                    LastProviderName = eastMoney.ProviderName;
-                    LastError = eastMoney.Error;
-                    return eastMoney;
-                }
-                errors.Add("东方财富：" + eastMoney.Error);
-            }
-            catch (Exception ex)
-            {
-                errors.Add("东方财富：" + ex.Message);
-            }
+                    ProviderResult result = await provider.GetQuotesAsync(stocks);
+                    if (HasUsableQuotes(result))
+                    {
+                        LastProviderName = result.ProviderName;
+                        LastError = result.Error;
+                        return result;
+                    }
 
-            try
-            {
-                ProviderResult tencent = await GetTencentAsync(stocks);
-                if (tencent.Quotes.Count > 0)
-                {
-                    LastProviderName = tencent.ProviderName;
-                    LastError = tencent.Error;
-                    return tencent;
+                    string resultError = result == null || string.IsNullOrEmpty(result.Error)
+                        ? "没有有效行情"
+                        : result.Error;
+                    errors.Add(provider.Name + "：" + resultError);
                 }
-                errors.Add("腾讯行情：" + tencent.Error);
-            }
-            catch (Exception ex)
-            {
-                errors.Add("腾讯行情：" + ex.Message);
+                catch (Exception ex)
+                {
+                    errors.Add(provider.Name + "：" + ex.Message);
+                }
             }
 
             ProviderResult failed = new ProviderResult();
@@ -120,6 +133,122 @@ namespace StockNotice
             LastProviderName = failed.ProviderName;
             LastError = failed.Error;
             return failed;
+        }
+
+        public void RecoverTransport()
+        {
+            if (!_ownsTransport) return;
+
+            HttpClient previous = _http;
+            _http = null;
+            if (previous != null) previous.Dispose();
+            InitializeTransport();
+            _providers = CreateDefaultProviders();
+        }
+
+        public void Dispose()
+        {
+            HttpClient client = _http;
+            _http = null;
+            if (client != null) client.Dispose();
+        }
+
+        private List<IMarketQuoteProvider> CreateDefaultProviders()
+        {
+            List<IMarketQuoteProvider> providers = new List<IMarketQuoteProvider>();
+            providers.Add(new AkShareQuoteProvider(this));
+            providers.Add(new EastMoneyQuoteProvider(this));
+            providers.Add(new TencentQuoteProvider(this));
+            return providers;
+        }
+
+        private static bool HasUsableQuotes(ProviderResult result)
+        {
+            if (result == null || result.Quotes == null) return false;
+            for (int i = 0; i < result.Quotes.Count; i++)
+            {
+                if (result.Quotes[i] != null && result.Quotes[i].IsValid) return true;
+            }
+            return false;
+        }
+
+        // Mirrors AKShare's stock_bid_ask_em interface. The upstream endpoint is
+        // the same one AKShare wraps, but keeping the parsing in C# means the
+        // desktop app does not need a Python runtime at run time.
+        private async Task<ProviderResult> GetAkShareAsync(List<StockConfig> stocks)
+        {
+            ProviderResult result = new ProviderResult();
+            result.ProviderName = "AKShare（东方财富个股）";
+
+            List<Task<AkShareFetch>> fetches = new List<Task<AkShareFetch>>();
+            for (int i = 0; i < stocks.Count; i++)
+            {
+                fetches.Add(FetchAkShareAsync(stocks[i]));
+            }
+
+            AkShareFetch[] responses = await Task.WhenAll(fetches.ToArray());
+            List<string> errors = new List<string>();
+            for (int i = 0; i < responses.Length; i++)
+            {
+                AkShareFetch response = responses[i];
+                if (!string.IsNullOrEmpty(response.Error))
+                {
+                    errors.Add(response.Stock.Code + "：" + response.Error);
+                    continue;
+                }
+
+                Quote quote = AkShareQuoteParser.Parse(
+                    response.Stock.Code,
+                    response.Stock.Market,
+                    response.Stock.Name,
+                    response.Json);
+                if (!quote.IsValid)
+                {
+                    errors.Add(response.Stock.Code + "："
+                        + (string.IsNullOrEmpty(quote.Error) ? "无有效成交价" : quote.Error));
+                    continue;
+                }
+                result.Quotes.Add(quote);
+            }
+
+            if (result.Quotes.Count == 0)
+            {
+                result.Error = errors.Count == 0
+                    ? "接口未返回行情数据。"
+                    : string.Join("；", errors.ToArray());
+            }
+            else if (errors.Count > 0)
+            {
+                result.Error = string.Join("；", errors.ToArray());
+            }
+
+            return result;
+        }
+
+        private async Task<AkShareFetch> FetchAkShareAsync(StockConfig stock)
+        {
+            AkShareFetch fetch = new AkShareFetch();
+            fetch.Stock = stock;
+
+            try
+            {
+                string marketId = stock.Market == MarketNames.Shanghai ? "1" : "0";
+                string url = "https://push2.eastmoney.com/api/qt/stock/get"
+                    + "?fltt=2&invt=2&fields=f43,f57,f58,f60,f86,f170"
+                    + "&secid=" + marketId + "." + stock.Code;
+
+                using (HttpResponseMessage response = await _http.GetAsync(url))
+                {
+                    response.EnsureSuccessStatusCode();
+                    fetch.Json = await response.Content.ReadAsStringAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                fetch.Error = ex.Message;
+            }
+
+            return fetch;
         }
 
         public async Task<Quote> LookupAsync(string rawCode)
@@ -468,6 +597,79 @@ namespace StockNotice
             public object f16 { get; set; }
             public object f17 { get; set; }
             public object f124 { get; set; }
+        }
+
+        private class AkShareFetch
+        {
+            public StockConfig Stock { get; set; }
+            public string Json { get; set; }
+            public string Error { get; set; }
+
+            public AkShareFetch()
+            {
+                Json = string.Empty;
+                Error = string.Empty;
+            }
+        }
+
+        private sealed class AkShareQuoteProvider : IMarketQuoteProvider
+        {
+            private readonly MarketDataService _owner;
+
+            public AkShareQuoteProvider(MarketDataService owner)
+            {
+                _owner = owner;
+            }
+
+            public string Name
+            {
+                get { return "AKShare"; }
+            }
+
+            public Task<ProviderResult> GetQuotesAsync(List<StockConfig> stocks)
+            {
+                return _owner.GetAkShareAsync(stocks);
+            }
+        }
+
+        private sealed class EastMoneyQuoteProvider : IMarketQuoteProvider
+        {
+            private readonly MarketDataService _owner;
+
+            public EastMoneyQuoteProvider(MarketDataService owner)
+            {
+                _owner = owner;
+            }
+
+            public string Name
+            {
+                get { return "东方财富"; }
+            }
+
+            public Task<ProviderResult> GetQuotesAsync(List<StockConfig> stocks)
+            {
+                return _owner.GetEastMoneyAsync(stocks);
+            }
+        }
+
+        private sealed class TencentQuoteProvider : IMarketQuoteProvider
+        {
+            private readonly MarketDataService _owner;
+
+            public TencentQuoteProvider(MarketDataService owner)
+            {
+                _owner = owner;
+            }
+
+            public string Name
+            {
+                get { return "腾讯行情"; }
+            }
+
+            public Task<ProviderResult> GetQuotesAsync(List<StockConfig> stocks)
+            {
+                return _owner.GetTencentAsync(stocks);
+            }
         }
     }
 }

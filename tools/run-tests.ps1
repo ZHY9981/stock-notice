@@ -18,12 +18,19 @@ if (-not (Test-Path -LiteralPath $csc)) {
 $frameworkDir = Split-Path -Parent $csc
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-$references = @('System.dll', 'System.Core.dll') | ForEach-Object {
+$references = @('System.dll', 'System.Core.dll', 'System.Net.Http.dll', 'System.Web.Extensions.dll') | ForEach-Object {
     '/reference:{0}' -f (Join-Path $frameworkDir $_)
 }
 
 $sources = @(
     (Join-Path $srcDir 'Models.cs'),
+    (Join-Path $srcDir 'Models.StockCandidate.cs'),
+    (Join-Path $srcDir 'TradingCalendar.cs'),
+    (Join-Path $srcDir 'MarketClock.cs'),
+    (Join-Path $srcDir 'AlertPolicy.cs'),
+    (Join-Path $srcDir 'IMarketQuoteProvider.cs'),
+    (Join-Path $srcDir 'MarketDataProvider.cs'),
+    (Join-Path $srcDir 'AkShareQuoteParser.cs'),
     (Join-Path $srcDir 'RuleEngine.cs'),
     (Join-Path $toolsDir 'RuleEngineTests.cs')
 )
@@ -35,6 +42,7 @@ $arguments = @(
     '/target:exe',
     '/platform:anycpu',
     '/codepage:65001',
+    ('/resource:{0},StockNotice.trading-calendar.json' -f (Join-Path $srcDir 'trading-calendar.json')),
     '/main:StockNotice.Tests.RuleEngineTests',
     ('/out:{0}' -f $output)
 ) + $references + $sources

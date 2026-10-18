@@ -5,7 +5,7 @@
 Windows 桌面 A 股涨跌提醒程序。监控指定股票的涨跌幅，达到设定阈值后通过
 Windows 系统通知提醒，点击通知可回到主窗口并定位到对应股票。
 
-## 第一版功能
+## 当前功能
 
 - 自选股票管理：添加、编辑、删除、启用/暂停。添加时**代码和公司名称都可以**：
   输入 `600519`、`SH600519`、`600519.SH` 直接查代码，输入「贵州茅台」「茅台」
@@ -19,13 +19,20 @@ Windows 系统通知提醒，点击通知可回到主窗口并定位到对应股
   所以在 125% / 150% / 200% 缩放下文字是原生绘制的，不会被 Windows 拉伸变模糊。
 - 逐只配置阈值：上涨阈值、下跌阈值、重新触发所需的重置幅度都按百分比单独设置。
 - 自定义基准：默认用昨日收盘价，可临时指定某天的自定义基准价，仅当天生效，次日自动回到昨日收盘价。
+- 交易日历：使用 AKShare 提供的完整 A 股交易日数据，自动排除周末和法定休市。
 - 定时检查：交易时段内默认每 5 秒检查一次（9:30–11:30、13:00–15:00）。
+- 行情新鲜度：超过设置时间的行情不会参与提醒，界面显示数据年龄和来源健康状态。
+- 自动恢复：行情连续失败时继续降级数据源，并定期重建 HTTP 连接。
 - 通知规则：
   - 首次达到阈值时通知一次；
   - 之后每再上涨/下跌 1% 再通知一次，每轮最多 3 次；
   - 价格回落到明显低于阈值的水平（低于“阈值 − 重置幅度”）后允许重新触发，次数重新计。
+- 支持同股提醒间隔和免打扰时段；被抑制的提醒仍写入触发记录。
 - 通知内容包含股票名称、涨/跌方向、当前涨跌幅、当前价格，并可播放提示音。
+- 通知触发时同步更新托盘状态和窗口提示，作为系统通知被专注助手拦截时的兜底。
 - 命中阈值会写入“触发记录”，主界面显示监控数量、当日触发次数、更新时间、行情来源。
+- 启动自检：检查交易日历、数据目录和日志目录，问题会写入状态栏和日志。
+- 异常日志：运行错误、行情失败、恢复和通知投递决定都会记录到日志文件。
 - 常驻系统托盘：关闭主窗口继续后台监控，托盘菜单可显示主界面或退出。
 - 支持开机自启动（设置窗口内开关）。
 
@@ -40,13 +47,21 @@ stock-notice/
     StockEditForm.cs   股票编辑窗口
     MonitorService.cs  轮询与调度
     RuleEngine.cs      涨跌阈值状态机
-    MarketDataProvider.cs  行情来源（东方财富 / 腾讯）
+    AlertPolicy.cs     冷却、免打扰和投递决策
+    TradingCalendar.cs A 股交易日历
+    MarketDataProvider.cs  行情来源（AKShare / 东方财富 / 腾讯）
+    IMarketQuoteProvider.cs 行情源接口
+    AkShareQuoteParser.cs  AKShare 个股行情字段解析
+    AppLogger.cs       滚动异常日志
+    StartupCheck.cs    启动自检
+    trading-calendar.json  AKShare 交易日数据（嵌入程序）
     AppResources.cs    全部界面颜色与主题（改样式只动这里）
     Models.cs, JsonStateStore.cs, MarketClock.cs, RegistryHelper.cs
     app.ico            程序图标，由 tools/make-icon.ps1 生成
   tools/
     RuleEngineTests.cs 规则状态机测试
     run-tests.ps1      编译并运行测试
+    check-marketdata.ps1  联网检查行情源
     make-icon.ps1      生成多尺寸 app.ico
   build.ps1            用 Windows 自带 C# 编译器构建
   run.cmd              构建并启动
@@ -106,17 +121,34 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 powershell -ExecutionPolicy Bypass -File .\tools\run-tests.ps1
 ```
 
+联网检查行情源：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1 600519
+```
+
 ## 数据位置
 
 配置与触发记录保存在 `build\data\state.json`。若该目录不可写，会自动回退到
 `%LocalAppData%\StockNotice\data\state.json`。
 
+运行日志保存在 `build\logs\`。若程序目录不可写，会自动回退到
+`%LocalAppData%\StockNotice\logs\`。
+
 ## 行情来源
 
-行情来自免费公开接口，依次尝试东方财富、腾讯行情，并自动切换；接口可能
-有数秒延迟或短时不可用，此时保留最后一次有效价格。程序只在交易时段发起检查。
+行情按 AKShare 的 `stock_bid_ask_em` 个股报价协议实现，依次尝试
+AKShare（东方财富个股接口）、东方财富批量接口、腾讯行情，并自动切换。该实现
+直接使用 AKShare 所封装的数据协议，不需要安装 Python 或 AKShare 运行时。
+接口可能有数秒延迟或短时不可用，此时保留最后一次有效价格。程序只在交易时段
+发起检查。
+
+交易日历来自 AKShare 的 `akshare/file_fold/calendar.json`，当前覆盖到
+`2026-12-31`。每年年底需要用新版 AKShare 中的同名文件更新
+`src/trading-calendar.json`，然后重新构建。启动自检会在日历临近过期时提示。
 
 ## 后续计划
 
-1. 第二版：收盘后汇总当日涨跌、触发次数与收盘涨跌幅，统一推送到手机。
-2. 更后面：价格突破提醒、历史回测、自动交易等。
+1. 收盘后汇总当日涨跌、触发次数与收盘涨跌幅，统一推送到手机。
+2. 扩展价格突破、成交量和组合条件提醒。
+3. 使用 SQLite 保存历史行情，并增加简单回测。

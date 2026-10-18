@@ -14,6 +14,7 @@ namespace StockNotice
         private readonly MarketDataService _marketData;
         private readonly MonitorService _monitor;
         private readonly bool _demoMode;
+        private readonly StartupCheckResult _startupCheck;
         private readonly Icon _appIcon;
         private readonly Icon _trayIcon;
 
@@ -25,6 +26,7 @@ namespace StockNotice
         private Label _triggerCountLabel;
         private Label _updateLabel;
         private Label _providerLabel;
+        private Label _healthLabel;
         private Label _sessionLabel;
         private Label _sessionHintLabel;
         private Label _statusLabel;
@@ -35,16 +37,25 @@ namespace StockNotice
         private bool _allowExit;
         private bool _trayHintShown;
         private string _pendingNotificationStockId;
+        private string _alertBannerText;
+        private DateTime _alertBannerUntil;
         private readonly Font _tabFont;
         private readonly Font _tabFontBold;
 
-        public MainForm(AppState state, JsonStateStore store, MarketDataService marketData, MonitorService monitor, bool demoMode)
+        public MainForm(
+            AppState state,
+            JsonStateStore store,
+            MarketDataService marketData,
+            MonitorService monitor,
+            bool demoMode,
+            StartupCheckResult startupCheck)
         {
             _state = state;
             _store = store;
             _marketData = marketData;
             _monitor = monitor;
             _demoMode = demoMode;
+            _startupCheck = startupCheck;
             _appIcon = AppResources.CreateAppIcon();
             _trayIcon = AppResources.CreateTrayIcon();
             _tabFont = AppResources.Font(9F, FontStyle.Regular);
@@ -79,6 +90,10 @@ namespace StockNotice
         {
             _monitor.RebuildStockIndex();
             if (!_demoMode) _monitor.Start();
+            if (_startupCheck != null && !_startupCheck.IsHealthy)
+            {
+                ShowAlertBanner(_startupCheck.Summary, 12);
+            }
             RefreshAll();
         }
 
@@ -191,20 +206,22 @@ namespace StockNotice
         {
             TableLayoutPanel stats = new TableLayoutPanel();
             stats.Dock = DockStyle.Fill;
-            stats.ColumnCount = 4;
+            stats.ColumnCount = 5;
             stats.RowCount = 1;
             stats.BackColor = AppResources.Background;
             stats.Padding = AppResources.SPad(22, 8, 22, 8);
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
+            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             stats.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             stats.Controls.Add(CreateStatBlock("监控股票", out _stockCountLabel), 0, 0);
             stats.Controls.Add(CreateStatBlock("今日触发", out _triggerCountLabel), 1, 0);
             stats.Controls.Add(CreateStatBlock("行情更新时间", out _updateLabel), 2, 0);
-            stats.Controls.Add(CreateStatBlock("行情来源", out _providerLabel), 3, 0);
+            stats.Controls.Add(CreateStatBlock("数据状态", out _healthLabel), 3, 0);
+            stats.Controls.Add(CreateStatBlock("行情来源", out _providerLabel), 4, 0);
             return stats;
         }
 
@@ -567,7 +584,9 @@ namespace StockNotice
                 "贵州茅台 上涨 3.20%",
                 "当前价格 1588.00",
                 ToolTipIcon.Info);
-            if (_state.Settings.SoundEnabled) SystemSounds.Asterisk.Play();
+            if (_state.Settings.SoundEnabled) SystemSounds.Exclamation.Play();
+            _tray.Text = "股票涨跌提醒 · 测试通知";
+            ShowAlertBanner("测试通知 · 贵州茅台上涨 3.20% · 当前价格 1588.00", 12);
         }
 
         private void AddButton_Click(object sender, EventArgs e)
@@ -787,7 +806,7 @@ namespace StockNotice
                     AppResources.FormatPrice(item.Price),
                     level,
                     item.NotificationNumber.ToString() + "/3",
-                    ReasonText(item.Reason));
+                    ReasonText(item));
             }
         }
 
@@ -799,23 +818,58 @@ namespace StockNotice
                 return item.TriggeredAt.Date == MarketClock.Now().Date;
             });
             _triggerCountLabel.Text = todayTriggers.ToString();
-            _updateLabel.Text = AppResources.FormatTime(_monitor.LastFetchAt);
+            _updateLabel.Text = _monitor.LastFetchAt == DateTime.MinValue
+                ? "--"
+                : AppResources.FormatTime(_monitor.LastFetchAt);
             _providerLabel.Text = _monitor.ProviderName;
+            RefreshDataHealth();
             _monitorButton.Text = _state.Settings.MonitoringEnabled ? "暂停监控" : "继续监控";
 
             DateTime now = MarketClock.Now();
             bool session = MarketClock.IsTradingSession(now);
-            _sessionLabel.Text = session
+            bool quiet = AlertPolicy.IsQuietTime(_state.Settings, now);
+            _sessionLabel.Text = quiet
+                ? "免打扰时段"
+                : session
                 ? (_state.Settings.MonitoringEnabled ? "交易中 · 监控运行" : "交易中 · 已暂停")
                 : MarketClock.GetSessionText(now) + " · 已暂停检查";
-            _sessionLabel.ForeColor = session && _state.Settings.MonitoringEnabled
+            _sessionLabel.ForeColor = session && _state.Settings.MonitoringEnabled && !quiet
                 ? AppResources.SessionActive
                 : AppResources.HeaderText;
             _sessionHintLabel.Text = "下一时段：" + MarketClock.GetNextSessionText(now);
             // Keep the hint glued to the right of the (variable width) session text.
             _sessionHintLabel.Left = _sessionLabel.Right + AppResources.S(12);
-            _statusLabel.Text = _monitor.StatusMessage;
+            UpdateStatusDisplay(_monitor.StatusMessage);
             _tray.Text = _state.Settings.MonitoringEnabled ? "股票涨跌提醒 · 监控中" : "股票涨跌提醒 · 已暂停";
+        }
+
+        private void RefreshDataHealth()
+        {
+            if (_monitor.LastFetchAt == DateTime.MinValue)
+            {
+                _healthLabel.Text = "等待行情";
+                _healthLabel.ForeColor = AppResources.Muted;
+                return;
+            }
+
+            if (_monitor.ConsecutiveFailures > 0)
+            {
+                _healthLabel.Text = "行情异常 · "
+                    + _monitor.ConsecutiveFailures.ToString() + " 次失败";
+                _healthLabel.ForeColor = AppResources.Up;
+                return;
+            }
+
+            int age = _monitor.DataAgeSeconds;
+            if (_monitor.IsDataStale)
+            {
+                _healthLabel.Text = "数据陈旧 · " + age.ToString() + " 秒前";
+                _healthLabel.ForeColor = AppResources.Up;
+                return;
+            }
+
+            _healthLabel.Text = "正常 · " + Math.Max(0, age).ToString() + " 秒前";
+            _healthLabel.ForeColor = AppResources.Text;
         }
 
         private static decimal CalculateChange(StockConfig stock, Quote quote)
@@ -843,11 +897,22 @@ namespace StockNotice
             return name + Environment.NewLine + stock.Symbol;
         }
 
-        private static string BuildRuntimeStatus(StockConfig stock, Quote quote, decimal change, StockRuntimeState runtime)
+        private string BuildRuntimeStatus(StockConfig stock, Quote quote, decimal change, StockRuntimeState runtime)
         {
             if (!stock.Enabled) return "已停用";
             if (quote == null) return "等待行情";
             if (!quote.IsValid) return string.IsNullOrEmpty(quote.Error) ? "行情异常" : quote.Error;
+            DateTime now = MarketClock.Now();
+            if (!MarketClock.IsQuoteFresh(
+                quote,
+                now,
+                TimeSpan.FromSeconds(_state.Settings.StaleQuoteSeconds)))
+            {
+                int age = quote.Timestamp == DateTime.MinValue
+                    ? -1
+                    : Math.Max(0, (int)(now - quote.Timestamp).TotalSeconds);
+                return age < 0 ? "行情时间未知" : "行情陈旧 " + age.ToString() + " 秒";
+            }
             if (change > stock.UpThreshold)
             {
                 return "上涨已通知 " + runtime.Up.NotificationCount.ToString() + "/3";
@@ -859,12 +924,19 @@ namespace StockNotice
             return "监控中";
         }
 
-        private static string ReasonText(string reason)
+        private static string ReasonText(TriggerRecord item)
         {
-            if (reason == "threshold") return "首次突破";
-            if (reason == "level") return "新增 1% 档位";
-            if (reason == "startup") return "启动即时检查";
-            return reason;
+            string reason = item == null ? string.Empty : item.Reason;
+            string text;
+            if (reason == "threshold") text = "首次突破";
+            else if (reason == "level") text = "新增 1% 档位";
+            else if (reason == "startup") text = "启动即时检查";
+            else text = reason;
+
+            if (item == null || string.IsNullOrEmpty(item.SuppressedReason)) return text;
+            if (item.SuppressedReason == AlertPolicy.QuietHoursReason) return text + "（免打扰）";
+            if (item.SuppressedReason == AlertPolicy.CooldownReason) return text + "（冷却中）";
+            return text + "（" + item.SuppressedReason + "）";
         }
 
         private void StockGrid_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
@@ -921,9 +993,12 @@ namespace StockNotice
             _tray.ShowBalloonTip(6000, title, body, ToolTipIcon.Info);
             if (_state.Settings.SoundEnabled)
             {
-                SystemSounds.Asterisk.Play();
+                SystemSounds.Exclamation.Play();
             }
 
+            _tray.Text = "股票涨跌提醒 · 刚刚触发";
+            ShowAlertBanner(title + " · " + body, 30);
+            AppLogger.Info("Notification shown: " + title + " " + body);
             RefreshAll();
         }
 
@@ -936,7 +1011,7 @@ namespace StockNotice
                 return;
             }
 
-            _statusLabel.Text = e.IsFetching ? "正在刷新行情..." : e.StatusMessage;
+            UpdateStatusDisplay(e.IsFetching ? "正在刷新行情..." : e.StatusMessage);
             if (!e.IsFetching)
             {
                 RefreshAll();
@@ -957,11 +1032,47 @@ namespace StockNotice
         {
             DateTime now = MarketClock.Now();
             bool session = MarketClock.IsTradingSession(now);
-            _sessionLabel.Text = session
+            bool quiet = AlertPolicy.IsQuietTime(_state.Settings, now);
+            _sessionLabel.Text = quiet
+                ? "免打扰时段"
+                : session
                 ? (_state.Settings.MonitoringEnabled ? "交易中 · 监控运行" : "交易中 · 已暂停")
                 : MarketClock.GetSessionText(now) + " · 已暂停检查";
+            _sessionLabel.ForeColor = session && _state.Settings.MonitoringEnabled && !quiet
+                ? AppResources.SessionActive
+                : AppResources.HeaderText;
             _sessionHintLabel.Text = "下一时段：" + MarketClock.GetNextSessionText(now);
             _sessionHintLabel.Left = _sessionLabel.Right + AppResources.S(12);
+            if (DateTime.Now >= _alertBannerUntil)
+            {
+                UpdateStatusDisplay(_monitor.StatusMessage);
+                if (_state.Settings.MonitoringEnabled)
+                {
+                    _tray.Text = "股票涨跌提醒 · 监控中";
+                }
+            }
+        }
+
+        private void ShowAlertBanner(string text, int seconds)
+        {
+            _alertBannerText = text;
+            _alertBannerUntil = DateTime.Now.AddSeconds(seconds);
+            UpdateStatusDisplay(_monitor.StatusMessage);
+        }
+
+        private void UpdateStatusDisplay(string fallback)
+        {
+            if (DateTime.Now < _alertBannerUntil && !string.IsNullOrEmpty(_alertBannerText))
+            {
+                _statusLabel.Text = _alertBannerText;
+                _statusLabel.ForeColor = AppResources.HeaderText;
+                return;
+            }
+
+            _statusLabel.Text = fallback;
+            _statusLabel.ForeColor = _monitor.ConsecutiveFailures > 0 || _monitor.IsDataStale
+                ? AppResources.Up
+                : AppResources.HeaderMuted;
         }
 
         public void SelectStock(string stockId)
@@ -1008,6 +1119,7 @@ namespace StockNotice
                 if (_trayIcon != null) _trayIcon.Dispose();
                 if (_tabFont != null) _tabFont.Dispose();
                 if (_tabFontBold != null) _tabFontBold.Dispose();
+                if (_marketData != null) _marketData.Dispose();
             }
             base.Dispose(disposing);
         }

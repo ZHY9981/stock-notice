@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace StockNotice.Tests
 {
@@ -91,6 +93,209 @@ namespace StockNotice.Tests
             Check("custom base price used", customEval.BasePrice, 10.0m);
             Check("custom base percent", customEval.ChangePercent, 4.0m);
             Check("custom base notifies", customEval.UpTrigger.ShouldNotify, true);
+
+            // 9. AKShare single-stock fields map to the shared quote model.
+            string akShareJson = "{\"rc\":0,\"data\":{\"f43\":1329.0,\"f57\":\"600519\","
+                + "\"f58\":\"贵州茅台\",\"f60\":1312.97,\"f86\":1792138307,\"f170\":1.22}}";
+            Quote akShareQuote = AkShareQuoteParser.Parse(
+                "600519",
+                MarketNames.Shanghai,
+                "600519",
+                akShareJson);
+            Check("akshare quote valid", akShareQuote.IsValid, true);
+            Check("akshare quote code", akShareQuote.Code, "600519");
+            Check("akshare quote name", akShareQuote.Name, "贵州茅台");
+            Check("akshare quote price", akShareQuote.Price, 1329.0m);
+            Check("akshare quote previous close", akShareQuote.PreviousClose, 1312.97m);
+            Check("akshare quote percent", akShareQuote.ChangePercent, 1.22m);
+            Check("akshare quote timestamp", akShareQuote.Timestamp != DateTime.MinValue, true);
+
+            Quote emptyAkShareQuote = AkShareQuoteParser.Parse(
+                "000001",
+                MarketNames.Shenzhen,
+                "平安银行",
+                "{\"rc\":0,\"data\":null}");
+            Check("akshare empty data invalid", emptyAkShareQuote.IsValid, false);
+            Check("akshare empty data error", emptyAkShareQuote.Error, "AKShare 接口没有有效行情");
+
+            // 10. The embedded A-share calendar excludes exchange holidays.
+            Check("trading calendar loaded", TradingCalendar.IsAvailable, true);
+            Check(
+                "trading calendar covers 2026",
+                TradingCalendar.LatestDate >= new DateTime(2026, 12, 31),
+                true);
+            Check(
+                "national day is closed",
+                TradingCalendar.IsTradingDay(new DateTime(2026, 10, 1)),
+                false);
+            Check(
+                "first day after national day is open",
+                TradingCalendar.IsTradingDay(new DateTime(2026, 10, 8)),
+                true);
+            Check(
+                "weekend is closed",
+                TradingCalendar.IsTradingDay(new DateTime(2026, 10, 18)),
+                false);
+            Check(
+                "expired calendar falls back to weekdays",
+                TradingCalendar.IsTradingDay(TradingCalendar.LatestDate.AddDays(1)),
+                true);
+            Check(
+                "next trading day skips holiday",
+                TradingCalendar.GetNextTradingDay(new DateTime(2026, 9, 30, 16, 0, 0)),
+                new DateTime(2026, 10, 8));
+            Check(
+                "holiday is not a trading session",
+                MarketClock.IsTradingSession(new DateTime(2026, 10, 1, 10, 0, 0)),
+                false);
+
+            Quote freshQuote = new Quote();
+            freshQuote.IsValid = true;
+            freshQuote.Timestamp = new DateTime(2026, 10, 13, 10, 0, 0).AddSeconds(-10);
+            Check(
+                "recent quote is fresh",
+                MarketClock.IsQuoteFresh(
+                    freshQuote,
+                    new DateTime(2026, 10, 13, 10, 0, 0),
+                    TimeSpan.FromSeconds(30)),
+                true);
+            freshQuote.Timestamp = new DateTime(2026, 10, 13, 10, 0, 0).AddSeconds(-40);
+            Check(
+                "old quote is stale",
+                MarketClock.IsQuoteFresh(
+                    freshQuote,
+                    new DateTime(2026, 10, 13, 10, 0, 0),
+                    TimeSpan.FromSeconds(30)),
+                false);
+            freshQuote.Timestamp = DateTime.MinValue;
+            Check(
+                "quote without timestamp is not fresh",
+                MarketClock.IsQuoteFresh(
+                    freshQuote,
+                    new DateTime(2026, 10, 13, 10, 0, 0),
+                    TimeSpan.FromSeconds(30)),
+                false);
+
+            // 11. Alert delivery obeys cooldown and quiet hours.
+            AppSettings deliverySettings = new AppSettings();
+            deliverySettings.AlertCooldownSeconds = 120;
+            deliverySettings.QuietHoursEnabled = false;
+
+            TriggerRecord deliveryRecord = new TriggerRecord();
+            deliveryRecord.StockId = "stock-1";
+            deliveryRecord.Direction = "up";
+
+            AlertDeliveryDecision cooldownDecision = AlertPolicy.Evaluate(
+                deliveryRecord,
+                deliverySettings,
+                new DateTime(2026, 10, 13, 10, 0, 30),
+                new DateTime(2026, 10, 13, 10, 1, 0));
+            Check("cooldown suppresses repeat", cooldownDecision.ShouldNotify, false);
+            Check("cooldown reason", cooldownDecision.SuppressionReason, "cooldown");
+
+            AlertDeliveryDecision cooledDownDecision = AlertPolicy.Evaluate(
+                deliveryRecord,
+                deliverySettings,
+                new DateTime(2026, 10, 13, 9, 58, 59),
+                new DateTime(2026, 10, 13, 10, 1, 0));
+            Check("expired cooldown allows notification", cooledDownDecision.ShouldNotify, true);
+
+            deliverySettings.QuietHoursEnabled = true;
+            deliverySettings.QuietHoursStart = "22:00";
+            deliverySettings.QuietHoursEnd = "08:00";
+            Check(
+                "quiet hours suppress late night",
+                AlertPolicy.IsQuietTime(deliverySettings, new DateTime(2026, 10, 13, 23, 0, 0)),
+                true);
+            Check(
+                "quiet hours suppress early morning",
+                AlertPolicy.IsQuietTime(deliverySettings, new DateTime(2026, 10, 13, 7, 0, 0)),
+                true);
+            Check(
+                "quiet hours allow daytime",
+                AlertPolicy.IsQuietTime(deliverySettings, new DateTime(2026, 10, 13, 12, 0, 0)),
+                false);
+
+            deliverySettings.QuietHoursStart = "11:30";
+            deliverySettings.QuietHoursEnd = "13:00";
+            Check(
+                "same-day quiet hours suppress lunch",
+                AlertPolicy.IsQuietTime(deliverySettings, new DateTime(2026, 10, 13, 12, 0, 0)),
+                true);
+            Check(
+                "same-day quiet hours end at boundary",
+                AlertPolicy.IsQuietTime(deliverySettings, new DateTime(2026, 10, 13, 13, 1, 0)),
+                false);
+
+            // 12. The quote router falls through failing and invalid providers.
+            StockConfig routedStock = new StockConfig();
+            routedStock.Code = "600519";
+            routedStock.Market = MarketNames.Shanghai;
+            List<StockConfig> routedStocks = new List<StockConfig>();
+            routedStocks.Add(routedStock);
+
+            FakeQuoteProvider failedProvider = new FakeQuoteProvider();
+            failedProvider.Name = "failed";
+            failedProvider.Result = new ProviderResult();
+            failedProvider.Result.ProviderName = "failed";
+            failedProvider.Result.Error = "network down";
+
+            FakeQuoteProvider invalidProvider = new FakeQuoteProvider();
+            invalidProvider.Name = "invalid";
+            invalidProvider.Result = new ProviderResult();
+            invalidProvider.Result.ProviderName = "invalid";
+            Quote invalidQuote = new Quote();
+            invalidQuote.Code = routedStock.Code;
+            invalidQuote.Market = routedStock.Market;
+            invalidQuote.IsValid = false;
+            invalidQuote.Error = "no trade";
+            invalidProvider.Result.Quotes.Add(invalidQuote);
+
+            FakeQuoteProvider workingProvider = new FakeQuoteProvider();
+            workingProvider.Name = "working";
+            workingProvider.Result = new ProviderResult();
+            workingProvider.Result.ProviderName = "working";
+            Quote workingQuote = new Quote();
+            workingQuote.Code = routedStock.Code;
+            workingQuote.Market = routedStock.Market;
+            workingQuote.Name = "贵州茅台";
+            workingQuote.Price = 1329m;
+            workingQuote.PreviousClose = 1312.97m;
+            workingQuote.ChangePercent = 1.22m;
+            workingQuote.Timestamp = day;
+            workingQuote.IsValid = true;
+            workingProvider.Result.Quotes.Add(workingQuote);
+
+            List<IMarketQuoteProvider> providers = new List<IMarketQuoteProvider>();
+            providers.Add(failedProvider);
+            providers.Add(invalidProvider);
+            providers.Add(workingProvider);
+            MarketDataService routedService = new MarketDataService(providers);
+            ProviderResult routedResult = routedService.GetQuotesAsync(routedStocks)
+                .GetAwaiter()
+                .GetResult();
+            Check("quote router uses next provider", routedResult.ProviderName, "working");
+            Check("quote router returns one quote", routedResult.Quotes.Count, 1);
+            Check("quote router records provider", routedService.LastProviderName, "working");
+
+            // 13. Legacy settings and history normalize without losing compatibility.
+            AppSettings legacySettings = new AppSettings();
+            legacySettings.AlertCooldownSeconds = -1;
+            legacySettings.StaleQuoteSeconds = 1;
+            legacySettings.QuietHoursStart = "bad";
+            legacySettings.QuietHoursEnd = "25:00";
+            legacySettings.Normalize();
+            Check("cooldown normalizes", legacySettings.AlertCooldownSeconds, 0);
+            Check("stale threshold normalizes", legacySettings.StaleQuoteSeconds, 5);
+            Check("quiet start falls back", legacySettings.QuietHoursStart, "22:00");
+            Check("quiet end falls back", legacySettings.QuietHoursEnd, "08:00");
+
+            AppState legacyState = new AppState();
+            TriggerRecord legacyRecord = new TriggerRecord();
+            legacyRecord.SuppressedReason = null;
+            legacyState.History.Add(legacyRecord);
+            legacyState.Normalize();
+            Check("legacy history normalizes", legacyState.History[0].SuppressedReason, string.Empty);
 
             Console.WriteLine();
             if (_failures == 0)
@@ -198,6 +403,33 @@ namespace StockNotice.Tests
             {
                 _failures++;
                 Console.WriteLine("FAIL  " + label + " (expected " + expected + ", got " + actual + ")");
+            }
+        }
+
+        private static void Check(string label, DateTime actual, DateTime expected)
+        {
+            if (actual == expected)
+            {
+                Console.WriteLine("PASS  " + label);
+            }
+            else
+            {
+                _failures++;
+                Console.WriteLine(
+                    "FAIL  " + label
+                    + " (expected " + expected.ToString("yyyy-MM-dd HH:mm:ss")
+                    + ", got " + actual.ToString("yyyy-MM-dd HH:mm:ss") + ")");
+            }
+        }
+
+        private sealed class FakeQuoteProvider : IMarketQuoteProvider
+        {
+            public string Name { get; set; }
+            public ProviderResult Result { get; set; }
+
+            public Task<ProviderResult> GetQuotesAsync(List<StockConfig> stocks)
+            {
+                return Task.FromResult(Result);
             }
         }
     }

@@ -22,13 +22,26 @@ namespace StockNotice
         public string ProviderName { get; private set; }
         public DateTime LastFetchAt { get; private set; }
         public bool IsFetching { get; private set; }
+        public int ConsecutiveFailures { get; private set; }
+        public int DataAgeSeconds { get; private set; }
+        public bool IsDataStale { get; private set; }
 
-        public MonitorSnapshotEventArgs(string statusMessage, string providerName, DateTime lastFetchAt, bool isFetching)
+        public MonitorSnapshotEventArgs(
+            string statusMessage,
+            string providerName,
+            DateTime lastFetchAt,
+            bool isFetching,
+            int consecutiveFailures,
+            int dataAgeSeconds,
+            bool isDataStale)
         {
             StatusMessage = statusMessage;
             ProviderName = providerName;
             LastFetchAt = lastFetchAt;
             IsFetching = isFetching;
+            ConsecutiveFailures = consecutiveFailures;
+            DataAgeSeconds = dataAgeSeconds;
+            IsDataStale = isDataStale;
         }
     }
 
@@ -49,6 +62,9 @@ namespace StockNotice
         private string _statusMessage;
         private string _providerName;
         private DateTime _lastFetchAt;
+        private DateTime _lastAttemptAt;
+        private DateTime _lastTransportResetAt;
+        private int _consecutiveFailures;
 
         public event EventHandler<TriggerEventArgs> TriggerRaised;
         public event EventHandler<MonitorSnapshotEventArgs> SnapshotUpdated;
@@ -79,6 +95,34 @@ namespace StockNotice
         public DateTime LastFetchAt
         {
             get { lock (_sync) return _lastFetchAt; }
+        }
+
+        public DateTime LastAttemptAt
+        {
+            get { lock (_sync) return _lastAttemptAt; }
+        }
+
+        public int ConsecutiveFailures
+        {
+            get { lock (_sync) return _consecutiveFailures; }
+        }
+
+        public int DataAgeSeconds
+        {
+            get { return CalculateDataAgeSeconds(); }
+        }
+
+        public bool IsDataStale
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    if (_lastFetchAt == DateTime.MinValue) return false;
+                    double age = (MarketClock.Now() - _lastFetchAt).TotalSeconds;
+                    return age > _state.Settings.StaleQuoteSeconds;
+                }
+            }
         }
 
         public void Start()
@@ -136,7 +180,9 @@ namespace StockNotice
                 }
                 _providerName = "演示数据";
                 _statusMessage = status;
-                _lastFetchAt = DateTime.Now;
+                _lastFetchAt = MarketClock.Now();
+                _lastAttemptAt = _lastFetchAt;
+                _consecutiveFailures = 0;
             }
         }
 
@@ -181,6 +227,7 @@ namespace StockNotice
             }
             catch (Exception ex)
             {
+                AppLogger.Error("Monitor timer failed.", ex);
                 lock (_sync)
                 {
                     _statusMessage = "检查失败：" + ex.Message;
@@ -202,6 +249,7 @@ namespace StockNotice
                     ? new List<StockConfig>()
                     : new List<StockConfig>(_state.Stocks);
                 _statusMessage = "正在获取行情";
+                _lastAttemptAt = chinaNow;
             }
             RaiseSnapshot(true);
 
@@ -210,7 +258,8 @@ namespace StockNotice
                 lock (_sync)
                 {
                     _statusMessage = "暂无监控股票";
-                    _lastFetchAt = DateTime.Now;
+                    _lastFetchAt = chinaNow;
+                    _consecutiveFailures = 0;
                 }
                 RaiseSnapshot(false);
                 return;
@@ -221,12 +270,15 @@ namespace StockNotice
             for (int i = 0; i < result.Quotes.Count; i++)
             {
                 Quote quote = result.Quotes[i];
+                if (quote == null || !quote.IsValid) continue;
                 StockConfig stock = FindStock(snapshotStocks, quote.Code, quote.Market);
                 if (stock != null) received[stock.Id] = quote;
             }
 
             bool stateChanged = false;
+            int failuresBefore = 0;
             List<TriggerRecord> newTriggers = new List<TriggerRecord>();
+            List<TriggerRecord> deliveredTriggers = new List<TriggerRecord>();
 
             lock (_sync)
             {
@@ -241,21 +293,81 @@ namespace StockNotice
                     }
                 }
 
-                if (result.Quotes.Count > 0)
+                failuresBefore = _consecutiveFailures;
+                if (received.Count > 0)
                 {
+                    _consecutiveFailures = 0;
                     _providerName = result.ProviderName;
-                    _lastFetchAt = DateTime.Now;
+                    _lastFetchAt = chinaNow;
                     _statusMessage = string.IsNullOrEmpty(result.Error)
                         ? result.ProviderName + " 更新成功"
-                        : result.ProviderName + "：" + result.Error;
+                        : result.ProviderName + " 部分更新：" + result.Error;
                 }
                 else
                 {
-                    _statusMessage = string.IsNullOrEmpty(result.Error) ? "未获取到行情" : result.Error;
+                    _consecutiveFailures++;
+                    string error = string.IsNullOrEmpty(result.Error) ? "未获取到行情" : result.Error;
+                    if (_lastFetchAt == DateTime.MinValue)
+                    {
+                        _statusMessage = "行情获取失败（连续 "
+                            + _consecutiveFailures.ToString() + " 次）· 暂无可用缓存：" + error;
+                    }
+                    else
+                    {
+                        int ageSeconds = Math.Max(0, (int)(chinaNow - _lastFetchAt).TotalSeconds);
+                        _statusMessage = "行情获取失败（连续 "
+                            + _consecutiveFailures.ToString() + " 次）· 显示 "
+                            + _lastFetchAt.ToString("HH:mm:ss") + " 缓存价格，已 "
+                            + ageSeconds.ToString() + " 秒：" + error;
+                    }
                 }
             }
 
-            if (evaluateTriggers && result.Quotes.Count > 0)
+            if (received.Count > 0 && failuresBefore > 0)
+            {
+                AppLogger.Info("Market data recovered after "
+                    + failuresBefore.ToString() + " failure(s).");
+            }
+            else if (received.Count == 0)
+            {
+                AppLogger.Warn("Market data unavailable. Consecutive failures: "
+                    + ConsecutiveFailures.ToString() + ". " + result.Error);
+            }
+
+            if (received.Count == 0)
+            {
+                bool recoverTransport = false;
+                lock (_sync)
+                {
+                    if (_consecutiveFailures >= 3
+                        && (_lastTransportResetAt == DateTime.MinValue
+                            || chinaNow - _lastTransportResetAt >= TimeSpan.FromMinutes(1)))
+                    {
+                        _lastTransportResetAt = chinaNow;
+                        recoverTransport = true;
+                    }
+                }
+
+                if (recoverTransport)
+                {
+                    try
+                    {
+                        _marketData.RecoverTransport();
+                        lock (_sync)
+                        {
+                            _statusMessage += "；已重置行情连接";
+                        }
+                        AppLogger.Warn("Market data transport reset after repeated failures.");
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Error("Market data transport reset failed.", ex);
+                    }
+                }
+            }
+
+            int staleQuotes = 0;
+            if (evaluateTriggers && received.Count > 0)
             {
                 if (_firstEvaluationForSession)
                 {
@@ -269,8 +381,18 @@ namespace StockNotice
                     if (!stock.Enabled || !received.TryGetValue(stock.Id, out quote)) continue;
                     if (!quote.IsValid) continue;
                     if (!MarketClock.IsFreshTradingDate(quote, chinaNow)) continue;
+                    if (!MarketClock.IsQuoteFresh(
+                        quote,
+                        chinaNow,
+                        TimeSpan.FromSeconds(_state.Settings.StaleQuoteSeconds)))
+                    {
+                        staleQuotes++;
+                        continue;
+                    }
 
                     StockRuntimeState runtime = _state.GetRuntime(stock.Id, chinaNow.ToString("yyyy-MM-dd"));
+                    DateTime previousUpNotifiedAt = runtime.Up.LastNotifiedAt;
+                    DateTime previousDownNotifiedAt = runtime.Down.LastNotifiedAt;
                     RuleEvaluation evaluation = _ruleEngine.Evaluate(
                         stock,
                         quote,
@@ -280,20 +402,42 @@ namespace StockNotice
 
                     if (evaluation.UpTrigger != null && evaluation.UpTrigger.ShouldNotify)
                     {
-                        TriggerRecord record = BuildTrigger(stock, quote, evaluation.UpTrigger, chinaNow);
-                        newTriggers.Add(record);
+                        AddTriggerRecord(
+                            stock,
+                            quote,
+                            evaluation.UpTrigger,
+                            previousUpNotifiedAt,
+                            chinaNow,
+                            newTriggers,
+                            deliveredTriggers);
                         stateChanged = true;
                     }
 
                     if (evaluation.DownTrigger != null && evaluation.DownTrigger.ShouldNotify)
                     {
-                        TriggerRecord record = BuildTrigger(stock, quote, evaluation.DownTrigger, chinaNow);
-                        newTriggers.Add(record);
+                        AddTriggerRecord(
+                            stock,
+                            quote,
+                            evaluation.DownTrigger,
+                            previousDownNotifiedAt,
+                            chinaNow,
+                            newTriggers,
+                            deliveredTriggers);
                         stateChanged = true;
                     }
                 }
 
                 _firstEvaluationForSession = false;
+            }
+
+            if (staleQuotes > 0)
+            {
+                lock (_sync)
+                {
+                    _statusMessage += "；" + staleQuotes.ToString() + " 只股票行情未更新";
+                }
+                AppLogger.Warn(staleQuotes.ToString()
+                    + " quote(s) were stale and skipped for alert evaluation.");
             }
 
             if (newTriggers.Count > 0)
@@ -321,11 +465,42 @@ namespace StockNotice
             }
 
             RaiseSnapshot(false);
-            for (int i = 0; i < newTriggers.Count; i++)
+            for (int i = 0; i < deliveredTriggers.Count; i++)
             {
                 EventHandler<TriggerEventArgs> handler = TriggerRaised;
-                if (handler != null) handler(this, new TriggerEventArgs(newTriggers[i]));
+                if (handler != null) handler(this, new TriggerEventArgs(deliveredTriggers[i]));
             }
+        }
+
+        private void AddTriggerRecord(
+            StockConfig stock,
+            Quote quote,
+            RuleTrigger trigger,
+            DateTime previousNotifiedAt,
+            DateTime chinaNow,
+            List<TriggerRecord> allTriggers,
+            List<TriggerRecord> deliveredTriggers)
+        {
+            TriggerRecord record = BuildTrigger(stock, quote, trigger, chinaNow);
+            AlertDeliveryDecision decision = AlertPolicy.Evaluate(
+                record,
+                _state.Settings,
+                previousNotifiedAt,
+                chinaNow);
+
+            if (!decision.ShouldNotify)
+            {
+                record.SuppressedReason = decision.SuppressionReason;
+                AppLogger.Info("Alert delivery suppressed for "
+                    + record.StockCode + " " + record.Direction
+                    + ": " + decision.SuppressionReason);
+            }
+            else
+            {
+                deliveredTriggers.Add(record);
+            }
+
+            allTriggers.Add(record);
         }
 
         private void ResetStartupFlags(List<StockConfig> stocks, DateTime chinaNow)
@@ -374,22 +549,54 @@ namespace StockNotice
             return null;
         }
 
+        private int CalculateDataAgeSeconds()
+        {
+            lock (_sync)
+            {
+                if (_lastFetchAt == DateTime.MinValue) return -1;
+                double age = (MarketClock.Now() - _lastFetchAt).TotalSeconds;
+                if (age < 0d) return 0;
+                if (age > int.MaxValue) return int.MaxValue;
+                return (int)age;
+            }
+        }
+
         private void RaiseSnapshot(bool fetching)
         {
             string status;
             string provider;
             DateTime lastFetch;
+            int consecutiveFailures;
+            bool stale;
             lock (_sync)
             {
                 status = _statusMessage;
                 provider = _providerName;
                 lastFetch = _lastFetchAt;
+                consecutiveFailures = _consecutiveFailures;
+                if (lastFetch == DateTime.MinValue)
+                {
+                    stale = false;
+                }
+                else
+                {
+                    double age = (MarketClock.Now() - lastFetch).TotalSeconds;
+                    stale = age > _state.Settings.StaleQuoteSeconds;
+                }
             }
 
+            int dataAgeSeconds = CalculateDataAgeSeconds();
             EventHandler<MonitorSnapshotEventArgs> handler = SnapshotUpdated;
             if (handler != null)
             {
-                handler(this, new MonitorSnapshotEventArgs(status, provider, lastFetch, fetching));
+                handler(this, new MonitorSnapshotEventArgs(
+                    status,
+                    provider,
+                    lastFetch,
+                    fetching,
+                    consecutiveFailures,
+                    dataAgeSeconds,
+                    stale));
             }
         }
     }

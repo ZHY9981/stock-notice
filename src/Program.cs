@@ -10,6 +10,9 @@ namespace StockNotice
         [STAThread]
         private static void Main(string[] args)
         {
+            AppLogger.Initialize();
+            AppLogger.Info("Application starting. Log: " + AppLogger.LogPath);
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
@@ -41,6 +44,7 @@ namespace StockNotice
                 }
                 catch (Exception ex)
                 {
+                    AppLogger.Error("Application startup failed.", ex);
                     MessageBox.Show(
                         "程序启动失败：" + ex.Message,
                         "股票涨跌提醒",
@@ -57,13 +61,19 @@ namespace StockNotice
             MarketDataService marketData = new MarketDataService();
             RuleEngine ruleEngine = new RuleEngine();
             MonitorService monitor = new MonitorService(state, store, marketData, ruleEngine);
+            StartupCheckResult startupCheck = StartupCheck.Run(store);
+            AppLogger.Info(startupCheck.Summary);
+            for (int i = 0; i < startupCheck.Issues.Count; i++)
+            {
+                AppLogger.Warn(startupCheck.Issues[i]);
+            }
 
             if (demoMode)
             {
                 SeedDemo(state, store, monitor);
             }
 
-            return new MainForm(state, store, marketData, monitor, demoMode);
+            return new MainForm(state, store, marketData, monitor, demoMode, startupCheck);
         }
 
         private static void SeedDemo(AppState state, JsonStateStore store, MonitorService monitor)

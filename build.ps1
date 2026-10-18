@@ -102,6 +102,15 @@ if (Test-Path -LiteralPath $manifest) {
     Write-Host 'Applying app.manifest (high DPI aware)'
 }
 
+$calendar = Join-Path $srcDir 'trading-calendar.json'
+if (Test-Path -LiteralPath $calendar) {
+    $arguments += ('/resource:{0},StockNotice.trading-calendar.json' -f $calendar)
+    Write-Host 'Embedding A-share trading calendar'
+}
+else {
+    Write-Warning 'trading-calendar.json not found; weekday fallback will be used.'
+}
+
 Write-Host 'Compiling StockNotice.exe ...'
 & $csc @arguments
 if ($LASTEXITCODE -ne 0) {

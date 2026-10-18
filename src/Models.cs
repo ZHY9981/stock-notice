@@ -140,6 +140,7 @@ namespace StockNotice
         public int LevelIndex { get; set; }
         public int NotificationNumber { get; set; }
         public string Reason { get; set; }
+        public string SuppressedReason { get; set; }
         public DateTime TriggeredAt { get; set; }
 
         public TriggerRecord()
@@ -150,6 +151,7 @@ namespace StockNotice
             StockName = string.Empty;
             Direction = "up";
             Reason = string.Empty;
+            SuppressedReason = string.Empty;
             TriggeredAt = DateTime.Now;
         }
     }
@@ -160,6 +162,11 @@ namespace StockNotice
         public bool MonitoringEnabled { get; set; }
         public bool SoundEnabled { get; set; }
         public bool StartWithWindows { get; set; }
+        public int AlertCooldownSeconds { get; set; }
+        public bool QuietHoursEnabled { get; set; }
+        public string QuietHoursStart { get; set; }
+        public string QuietHoursEnd { get; set; }
+        public int StaleQuoteSeconds { get; set; }
 
         public AppSettings()
         {
@@ -167,6 +174,39 @@ namespace StockNotice
             MonitoringEnabled = true;
             SoundEnabled = true;
             StartWithWindows = false;
+            AlertCooldownSeconds = 120;
+            QuietHoursEnabled = false;
+            QuietHoursStart = "22:00";
+            QuietHoursEnd = "08:00";
+            StaleQuoteSeconds = 30;
+        }
+
+        public void Normalize()
+        {
+            if (PollIntervalSeconds <= 0) PollIntervalSeconds = 5;
+            if (AlertCooldownSeconds < 0) AlertCooldownSeconds = 0;
+            if (AlertCooldownSeconds > 3600) AlertCooldownSeconds = 3600;
+            if (StaleQuoteSeconds < 5) StaleQuoteSeconds = 5;
+            if (StaleQuoteSeconds > 300) StaleQuoteSeconds = 300;
+            QuietHoursStart = NormalizeClock(QuietHoursStart, "22:00");
+            QuietHoursEnd = NormalizeClock(QuietHoursEnd, "08:00");
+        }
+
+        private static string NormalizeClock(string value, string fallback)
+        {
+            TimeSpan parsed;
+            if (!string.IsNullOrEmpty(value)
+                && TimeSpan.TryParseExact(
+                    value.Trim(),
+                    "hh\\:mm",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out parsed)
+                && parsed >= TimeSpan.Zero
+                && parsed < TimeSpan.FromDays(1))
+            {
+                return parsed.ToString("hh\\:mm");
+            }
+            return fallback;
         }
     }
 
@@ -192,10 +232,17 @@ namespace StockNotice
         public void Normalize()
         {
             if (Settings == null) Settings = new AppSettings();
-            if (Settings.PollIntervalSeconds <= 0) Settings.PollIntervalSeconds = 5;
+            Settings.Normalize();
             if (Stocks == null) Stocks = new List<StockConfig>();
             if (Runtime == null) Runtime = new Dictionary<string, StockRuntimeState>();
             if (History == null) History = new List<TriggerRecord>();
+            for (int i = 0; i < History.Count; i++)
+            {
+                if (History[i] != null && History[i].SuppressedReason == null)
+                {
+                    History[i].SuppressedReason = string.Empty;
+                }
+            }
         }
 
         public StockRuntimeState GetRuntime(string stockId, string tradingDate)
