@@ -1216,17 +1216,30 @@ namespace StockNotice
             if (quote == null || quote.Timestamp == DateTime.MinValue)
             {
                 _detailFreshnessLabel.Text = "等待行情";
+                _detailFreshnessLabel.ForeColor = AppResources.Muted;
             }
             else
             {
-                int age = Math.Max(0, (int)(MarketClock.Now() - quote.Timestamp).TotalSeconds);
-                _detailFreshnessLabel.Text = age.ToString() + " 秒";
-                _detailFreshnessLabel.ForeColor = MarketClock.IsQuoteFresh(
+                DateTime now = MarketClock.Now();
+                int age = Math.Max(0, (int)(now - quote.Timestamp).TotalSeconds);
+                bool fresh = MarketClock.IsQuoteFresh(
                     quote,
-                    MarketClock.Now(),
-                    TimeSpan.FromSeconds(_state.Settings.StaleQuoteSeconds))
-                    ? AppResources.Text
-                    : AppResources.Up;
+                    now,
+                    TimeSpan.FromSeconds(_state.Settings.StaleQuoteSeconds));
+
+                if (!fresh && !MarketClock.IsTradingSession(now))
+                {
+                    // Outside the session every quote is "stale" by design; the
+                    // useful information is the market state, not a huge age.
+                    _detailFreshnessLabel.Text = MarketClock.GetSessionText(now)
+                        + " · " + AppResources.FormatTime(quote.Timestamp);
+                    _detailFreshnessLabel.ForeColor = AppResources.Muted;
+                }
+                else
+                {
+                    _detailFreshnessLabel.Text = age.ToString() + " 秒";
+                    _detailFreshnessLabel.ForeColor = fresh ? AppResources.Text : AppResources.Up;
+                }
             }
 
             _detailChart.SetQuotes(_monitor.GetQuoteHistory(stock.Id), basePrice);
