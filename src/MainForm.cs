@@ -27,10 +27,27 @@ namespace StockNotice
         private Label _updateLabel;
         private Label _providerLabel;
         private Label _healthLabel;
-        private Label _sessionLabel;
+        private StatusPill _sessionLabel;
+        private StatusPill _headerHealthPill;
         private Label _sessionHintLabel;
         private Label _statusLabel;
         private Button _monitorButton;
+        private ToolTip _toolTip;
+        private Label _detailNameLabel;
+        private Label _detailCodeLabel;
+        private StatusPill _detailStatusPill;
+        private Label _detailPriceLabel;
+        private Label _detailChangeLabel;
+        private Label _detailChangeValueLabel;
+        private QuoteSparkline _detailChart;
+        private Label _detailBaseLabel;
+        private Label _detailUpLabel;
+        private Label _detailDownLabel;
+        private Label _detailResetLabel;
+        private Label _detailFreshnessLabel;
+        private Label _detailCooldownLabel;
+        private Label _detailQuietLabel;
+        private Button _detailEditButton;
         private NotifyIcon _tray;
         private ContextMenuStrip _trayMenu;
         private Timer _uiTimer;
@@ -60,13 +77,17 @@ namespace StockNotice
             _trayIcon = AppResources.CreateTrayIcon();
             _tabFont = AppResources.Font(9F, FontStyle.Regular);
             _tabFontBold = AppResources.Font(9F, FontStyle.Bold);
+            _toolTip = new ToolTip();
+            _toolTip.AutoPopDelay = 5000;
+            _toolTip.InitialDelay = 350;
+            _toolTip.ReshowDelay = 100;
 
             Text = "股票涨跌提醒";
             Icon = _appIcon;
             AutoScaleMode = AutoScaleMode.None;
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = AppResources.SS(1080, 680);
-            Size = AppResources.SS(1240, 790);
+            MinimumSize = AppResources.SS(1180, 760);
+            Size = AppResources.SS(1360, 840);
             BackColor = AppResources.Background;
             Font = AppResources.Font(9F, FontStyle.Regular);
 
@@ -103,11 +124,11 @@ namespace StockNotice
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 1;
             root.RowCount = 5;
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(76F)));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(64F)));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(72F)));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(52F)));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(66F)));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(34F)));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(32F)));
             Controls.Add(root);
 
             root.Controls.Add(BuildHeader(), 0, 0);
@@ -122,36 +143,77 @@ namespace StockNotice
             Panel header = new Panel();
             header.Dock = DockStyle.Fill;
             header.BackColor = AppResources.Header;
-            header.Padding = AppResources.SPad(24, 14, 20, 10);
+            header.Padding = AppResources.SPad(22, 0, 20, 0);
+
+            RoundedPanel logo = new RoundedPanel();
+            logo.DrawBorder = false;
+            logo.CornerRadius = AppResources.S(17);
+            logo.BackColor = AppResources.HeaderText;
+            logo.Location = AppResources.SP(22, 15);
+            logo.Size = AppResources.SS(34, 34);
+            Label logoText = new Label();
+            logoText.Text = "A";
+            logoText.Dock = DockStyle.Fill;
+            logoText.TextAlign = ContentAlignment.MiddleCenter;
+            logoText.ForeColor = AppResources.Header;
+            logoText.Font = AppResources.Font(12F, FontStyle.Bold);
+            logo.Controls.Add(logoText);
+            header.Controls.Add(logo);
 
             Label title = new Label();
             title.Text = "A股涨跌提醒";
             title.ForeColor = AppResources.HeaderText;
             title.Font = AppResources.Font(17F, FontStyle.Bold);
             title.AutoSize = true;
-            title.Location = AppResources.SP(24, 13);
+            title.Location = AppResources.SP(68, 9);
             header.Controls.Add(title);
 
             Label subtitle = new Label();
-            subtitle.Text = "每 5 秒检查一次，触发后发送 Windows 通知";
+            subtitle.Text = "每 5 秒检查行情 · 本地隐私优先";
             subtitle.ForeColor = AppResources.HeaderMuted;
-            subtitle.Font = AppResources.Font(9F, FontStyle.Regular);
+            subtitle.Font = AppResources.Font(8F, FontStyle.Regular);
             subtitle.AutoSize = true;
-            subtitle.Location = AppResources.SP(26, 46);
+            subtitle.Location = AppResources.SP(70, 35);
             header.Controls.Add(subtitle);
+
+            FlowLayoutPanel statusGroup = new FlowLayoutPanel();
+            statusGroup.AutoSize = true;
+            statusGroup.WrapContents = false;
+            statusGroup.FlowDirection = FlowDirection.LeftToRight;
+            statusGroup.Location = AppResources.SP(322, 16);
+            statusGroup.Margin = Padding.Empty;
+
+            _sessionLabel = new StatusPill();
+            _sessionLabel.Text = "交易中 · --:--:--";
+            _sessionLabel.PillColor = Color.FromArgb(30, 77, 61);
+            _sessionLabel.ForeColor = Color.FromArgb(126, 240, 184);
+            _sessionLabel.Margin = AppResources.SPad(0, 0, 8, 0);
+            statusGroup.Controls.Add(_sessionLabel);
+
+            _headerHealthPill = new StatusPill();
+            _headerHealthPill.Text = "等待行情";
+            _headerHealthPill.PillColor = Color.FromArgb(31, 41, 55);
+            _headerHealthPill.ForeColor = AppResources.HeaderMuted;
+            _headerHealthPill.DrawPillBorder = true;
+            _headerHealthPill.PillBorderColor = Color.FromArgb(55, 65, 81);
+            statusGroup.Controls.Add(_headerHealthPill);
+            header.Controls.Add(statusGroup);
 
             FlowLayoutPanel right = new FlowLayoutPanel();
             right.Dock = DockStyle.Right;
             right.FlowDirection = FlowDirection.LeftToRight;
             right.WrapContents = false;
             right.AutoSize = true;
-            right.Padding = AppResources.SPad(0, 12, 0, 0);
+            right.Padding = AppResources.SPad(0, 15, 0, 0);
 
-            _monitorButton = CreateButton("暂停监控", 112, 36, false);
+            _monitorButton = CreateHeaderButton("暂停监控", 112, 34, AppGlyph.Pause);
             _monitorButton.Click += MonitorButton_Click;
             right.Controls.Add(_monitorButton);
 
-            Button settings = CreateButton("设置", 76, 36, false);
+            Button settings = CreateHeaderButton(string.Empty, 34, 34, AppGlyph.Settings);
+            settings.Name = "settingsButton";
+            settings.AccessibleName = "设置";
+            _toolTip.SetToolTip(settings, "打开运行设置");
             settings.Click += SettingsButton_Click;
             right.Controls.Add(settings);
 
@@ -164,7 +226,7 @@ namespace StockNotice
             Panel toolbar = new Panel();
             toolbar.Dock = DockStyle.Fill;
             toolbar.BackColor = AppResources.Surface;
-            toolbar.Padding = AppResources.SPad(22, 12, 22, 12);
+            toolbar.Padding = AppResources.SPad(22, 9, 22, 9);
 
             FlowLayoutPanel left = new FlowLayoutPanel();
             left.Dock = DockStyle.Left;
@@ -172,19 +234,23 @@ namespace StockNotice
             left.WrapContents = false;
             left.FlowDirection = FlowDirection.LeftToRight;
 
-            Button add = CreateButton("添加股票", 106, 38, true);
+            Button add = CreateButton("添加股票", 106, 34, true, AppGlyph.Add);
             add.Click += AddButton_Click;
             left.Controls.Add(add);
 
-            Button refresh = CreateButton("立即刷新", 106, 38, false);
+            Button refresh = CreateButton("立即刷新", 106, 34, false, AppGlyph.Refresh);
             refresh.Click += RefreshButton_Click;
             left.Controls.Add(refresh);
 
-            Button edit = CreateButton("编辑", 76, 38, false);
+            Button edit = CreateButton(string.Empty, 34, 34, false, AppGlyph.Edit);
+            edit.AccessibleName = "编辑";
+            _toolTip.SetToolTip(edit, "编辑当前股票");
             edit.Click += EditButton_Click;
             left.Controls.Add(edit);
 
-            Button delete = CreateButton("删除", 76, 38, false);
+            Button delete = CreateButton(string.Empty, 34, 34, false, AppGlyph.Delete);
+            delete.AccessibleName = "删除";
+            _toolTip.SetToolTip(delete, "删除当前股票");
             delete.Click += DeleteButton_Click;
             left.Controls.Add(delete);
 
@@ -192,11 +258,11 @@ namespace StockNotice
 
             Label hint = new Label();
             hint.Dock = DockStyle.Right;
-            hint.Width = AppResources.S(150);
+            hint.Width = AppResources.S(210);
             hint.TextAlign = ContentAlignment.MiddleRight;
             hint.ForeColor = AppResources.Muted;
-            hint.Text = "通知点击后会自动" + Environment.NewLine + "定位到对应股票";
-            hint.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            hint.Text = "双击编辑 · 右键更多操作";
+            hint.Font = AppResources.Font(8F, FontStyle.Regular);
             toolbar.Controls.Add(hint);
 
             return toolbar;
@@ -204,12 +270,23 @@ namespace StockNotice
 
         private Control BuildStatsStrip()
         {
+            Panel host = new Panel();
+            host.Dock = DockStyle.Fill;
+            host.BackColor = AppResources.Background;
+            host.Padding = AppResources.SPad(22, 6, 22, 8);
+
+            RoundedPanel card = new RoundedPanel();
+            card.Dock = DockStyle.Fill;
+            card.BackColor = AppResources.Surface;
+            card.BorderColor = AppResources.Border;
+            host.Controls.Add(card);
+
             TableLayoutPanel stats = new TableLayoutPanel();
             stats.Dock = DockStyle.Fill;
             stats.ColumnCount = 5;
             stats.RowCount = 1;
-            stats.BackColor = AppResources.Background;
-            stats.Padding = AppResources.SPad(22, 8, 22, 8);
+            stats.BackColor = AppResources.Surface;
+            stats.Padding = Padding.Empty;
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
@@ -217,37 +294,53 @@ namespace StockNotice
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             stats.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-            stats.Controls.Add(CreateStatBlock("监控股票", out _stockCountLabel), 0, 0);
-            stats.Controls.Add(CreateStatBlock("今日触发", out _triggerCountLabel), 1, 0);
-            stats.Controls.Add(CreateStatBlock("行情更新时间", out _updateLabel), 2, 0);
-            stats.Controls.Add(CreateStatBlock("数据状态", out _healthLabel), 3, 0);
-            stats.Controls.Add(CreateStatBlock("行情来源", out _providerLabel), 4, 0);
-            return stats;
+            stats.Controls.Add(CreateStatBlock("监控股票", out _stockCountLabel, true), 0, 0);
+            stats.Controls.Add(CreateStatBlock("今日触发", out _triggerCountLabel, true), 1, 0);
+            stats.Controls.Add(CreateStatBlock("行情更新时间", out _updateLabel, true), 2, 0);
+            stats.Controls.Add(CreateStatBlock("数据状态", out _healthLabel, true), 3, 0);
+            stats.Controls.Add(CreateStatBlock("行情来源", out _providerLabel, false), 4, 0);
+            card.Controls.Add(stats);
+            return host;
         }
 
-        private Control CreateStatBlock(string caption, out Label valueLabel)
+        private Control CreateStatBlock(string caption, out Label valueLabel, bool showDivider)
         {
             Panel block = new Panel();
             block.Dock = DockStyle.Fill;
-            block.Margin = AppResources.SPad(0, 0, 10, 0);
+            block.Margin = Padding.Empty;
             block.BackColor = AppResources.Surface;
-            block.Padding = AppResources.SPad(14, 7, 14, 6);
+            block.Padding = AppResources.SPad(14, 6, 14, 5);
+            if (showDivider)
+            {
+                block.Paint += delegate(object sender, PaintEventArgs e)
+                {
+                    using (Pen pen = new Pen(AppResources.Border))
+                    {
+                        e.Graphics.DrawLine(
+                            pen,
+                            block.Width - 1,
+                            AppResources.S(8),
+                            block.Width - 1,
+                            block.Height - AppResources.S(8));
+                    }
+                };
+            }
 
             Label captionLabel = new Label();
             captionLabel.Text = caption;
             captionLabel.ForeColor = AppResources.Muted;
             captionLabel.Font = AppResources.Font(8F, FontStyle.Regular);
             captionLabel.AutoSize = true;
-            captionLabel.Location = AppResources.SP(14, 7);
+            captionLabel.Location = AppResources.SP(14, 6);
             block.Controls.Add(captionLabel);
 
             valueLabel = new Label();
             valueLabel.Text = "--";
             valueLabel.ForeColor = AppResources.Text;
-            valueLabel.Font = AppResources.Font(11F, FontStyle.Bold);
+            valueLabel.Font = AppResources.Font(10.5F, FontStyle.Bold);
             valueLabel.AutoEllipsis = true;
             valueLabel.AutoSize = false;
-            valueLabel.Height = AppResources.S(23);
+            valueLabel.Height = AppResources.S(22);
             valueLabel.Dock = DockStyle.Bottom;
             block.Controls.Add(valueLabel);
             valueLabel.BringToFront();
@@ -268,24 +361,216 @@ namespace StockNotice
             _tabs.Padding = new Point(18, 6);
             _tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
             _tabs.SizeMode = TabSizeMode.Fixed;
-            _tabs.ItemSize = AppResources.SS(116, 32);
+            _tabs.ItemSize = AppResources.SS(116, 34);
             _tabs.DrawItem += Tabs_DrawItem;
 
             TabPage stocksTab = new TabPage("监控列表");
-            stocksTab.BackColor = AppResources.Surface;
-            stocksTab.Padding = new Padding(1);
-            stocksTab.Controls.Add(BuildStockGrid());
-            stocksTab.Controls.Add(BuildEmptyPanel());
+            stocksTab.BackColor = AppResources.Background;
+            stocksTab.Padding = AppResources.SPad(0, 8, 0, 0);
+            stocksTab.Controls.Add(BuildStockWorkspace());
             _tabs.TabPages.Add(stocksTab);
 
             TabPage historyTab = new TabPage("触发记录");
-            historyTab.BackColor = AppResources.Surface;
-            historyTab.Padding = new Padding(1);
-            historyTab.Controls.Add(BuildHistoryGrid());
+            historyTab.BackColor = AppResources.Background;
+            historyTab.Padding = AppResources.SPad(0, 8, 0, 0);
+            RoundedPanel historyCard = new RoundedPanel();
+            historyCard.Dock = DockStyle.Fill;
+            historyCard.BackColor = AppResources.Surface;
+            historyCard.Controls.Add(BuildHistoryGrid());
+            historyTab.Controls.Add(historyCard);
             _tabs.TabPages.Add(historyTab);
 
             content.Controls.Add(_tabs);
             return content;
+        }
+
+        private Control BuildStockWorkspace()
+        {
+            SplitContainer split = new SplitContainer();
+            split.Dock = DockStyle.Fill;
+            split.Orientation = Orientation.Vertical;
+            split.FixedPanel = FixedPanel.Panel2;
+            split.Panel1MinSize = 0;
+            split.Panel2MinSize = 0;
+            split.SplitterWidth = AppResources.S(12);
+            split.BackColor = AppResources.Background;
+
+            RoundedPanel tableCard = new RoundedPanel();
+            tableCard.Dock = DockStyle.Fill;
+            tableCard.BackColor = AppResources.Surface;
+            tableCard.Padding = new Padding(1);
+
+            Panel tableHost = new Panel();
+            tableHost.Dock = DockStyle.Fill;
+            tableHost.BackColor = AppResources.Surface;
+            tableHost.Controls.Add(BuildStockGrid());
+            tableHost.Controls.Add(BuildEmptyPanel());
+            tableCard.Controls.Add(tableHost);
+            split.Panel1.Controls.Add(tableCard);
+            split.Panel2.Controls.Add(BuildDetailPanel());
+
+            split.Resize += delegate
+            {
+                if (split.Width <= split.SplitterWidth + AppResources.S(80)) return;
+                int target = split.Width - AppResources.S(312) - split.SplitterWidth;
+                int minimum = AppResources.S(80);
+                int maximum = split.Width - split.SplitterWidth - AppResources.S(80);
+                if (maximum < minimum) return;
+                try
+                {
+                    split.SplitterDistance = Math.Max(minimum, Math.Min(maximum, target));
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // WinForms can raise this during an intermediate layout pass.
+                }
+            };
+            return split;
+        }
+
+        private Control BuildDetailPanel()
+        {
+            RoundedPanel detail = new RoundedPanel();
+            detail.Dock = DockStyle.Fill;
+            detail.BackColor = AppResources.Surface;
+            detail.Padding = AppResources.SPad(16, 15, 16, 14);
+
+            _detailNameLabel = new Label();
+            _detailNameLabel.Text = "请选择股票";
+            _detailNameLabel.AutoSize = true;
+            _detailNameLabel.ForeColor = AppResources.Text;
+            _detailNameLabel.Font = AppResources.Font(15F, FontStyle.Bold);
+            _detailNameLabel.Location = AppResources.SP(16, 15);
+            detail.Controls.Add(_detailNameLabel);
+
+            _detailStatusPill = new StatusPill();
+            _detailStatusPill.Text = "等待行情";
+            _detailStatusPill.PillColor = AppResources.FieldBackground;
+            _detailStatusPill.ForeColor = AppResources.Muted;
+            _detailStatusPill.Location = AppResources.SP(210, 16);
+            detail.Controls.Add(_detailStatusPill);
+
+            _detailCodeLabel = new Label();
+            _detailCodeLabel.Text = "--";
+            _detailCodeLabel.AutoSize = true;
+            _detailCodeLabel.ForeColor = AppResources.Muted;
+            _detailCodeLabel.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            _detailCodeLabel.Location = AppResources.SP(16, 44);
+            detail.Controls.Add(_detailCodeLabel);
+
+            _detailPriceLabel = new Label();
+            _detailPriceLabel.Text = "--";
+            _detailPriceLabel.AutoSize = true;
+            _detailPriceLabel.ForeColor = AppResources.Muted;
+            _detailPriceLabel.Font = new Font("Cascadia Mono", 24F, FontStyle.Bold, GraphicsUnit.Point);
+            _detailPriceLabel.Location = AppResources.SP(16, 65);
+            detail.Controls.Add(_detailPriceLabel);
+
+            _detailChangeLabel = new Label();
+            _detailChangeLabel.Text = "--";
+            _detailChangeLabel.AutoSize = true;
+            _detailChangeLabel.ForeColor = AppResources.Muted;
+            _detailChangeLabel.Font = AppResources.Font(9.5F, FontStyle.Bold);
+            _detailChangeLabel.Location = AppResources.SP(17, 105);
+            detail.Controls.Add(_detailChangeLabel);
+
+            _detailChart = new QuoteSparkline();
+            _detailChart.Location = AppResources.SP(16, 132);
+            _detailChart.Size = AppResources.SS(270, 92);
+            _detailChart.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            detail.Controls.Add(_detailChart);
+
+            AddDetailValue(detail, "基准价", out _detailBaseLabel, 16, 238);
+            AddDetailValue(detail, "当前涨跌", out _detailChangeValueLabel, 16, 273);
+            AddDetailValue(detail, "上涨阈值", out _detailUpLabel, 16, 308);
+            AddDetailValue(detail, "下跌阈值", out _detailDownLabel, 154, 238);
+            AddDetailValue(detail, "重置幅度", out _detailResetLabel, 154, 273);
+            AddDetailValue(detail, "提醒间隔", out _detailCooldownLabel, 154, 308);
+
+            Panel divider = new Panel();
+            divider.BackColor = AppResources.Border;
+            divider.Height = 1;
+            divider.Location = AppResources.SP(16, 354);
+            divider.Width = AppResources.S(270);
+            divider.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            detail.Controls.Add(divider);
+
+            AddDetailLine(detail, "数据新鲜度", out _detailFreshnessLabel, 370);
+            AddDetailLine(detail, "免打扰", out _detailQuietLabel, 397);
+
+            _detailEditButton = CreateButton("编辑设置", 118, 34, true, AppGlyph.Edit);
+            _detailEditButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            _detailEditButton.Location = AppResources.SP(16, 490);
+            _detailEditButton.Click += EditButton_Click;
+            detail.Controls.Add(_detailEditButton);
+
+            Button more = CreateButton(string.Empty, 34, 34, false, AppGlyph.More);
+            _toolTip.SetToolTip(more, "更多操作");
+            more.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            more.Location = AppResources.SP(144, 490);
+            more.Click += delegate
+            {
+                ContextMenuStrip menu = new ContextMenuStrip();
+                menu.Items.Add("编辑", null, delegate { EditSelectedStock(); });
+                menu.Items.Add("删除", null, delegate { DeleteSelectedStock(); });
+                menu.Show(more, new Point(0, more.Height));
+            };
+            detail.Controls.Add(more);
+
+            detail.Resize += delegate
+            {
+                _detailStatusPill.Left = Math.Max(
+                    AppResources.S(16),
+                    detail.ClientSize.Width - _detailStatusPill.Width - AppResources.S(16));
+                _detailChart.Width = Math.Max(
+                    AppResources.S(120),
+                    detail.ClientSize.Width - AppResources.S(32));
+                divider.Width = _detailChart.Width;
+                _detailEditButton.Top = detail.ClientSize.Height - AppResources.S(50);
+                more.Top = _detailEditButton.Top;
+            };
+            return detail;
+        }
+
+        private void AddDetailValue(Control parent, string caption, out Label value, int x, int y)
+        {
+            Label captionLabel = new Label();
+            captionLabel.Text = caption;
+            captionLabel.AutoSize = true;
+            captionLabel.ForeColor = AppResources.Muted;
+            captionLabel.Font = AppResources.Font(7.5F, FontStyle.Regular);
+            captionLabel.Location = AppResources.SP(x, y);
+            parent.Controls.Add(captionLabel);
+
+            value = new Label();
+            value.Text = "--";
+            value.AutoSize = true;
+            value.ForeColor = AppResources.Text;
+            value.Font = AppResources.Font(8.5F, FontStyle.Bold);
+            value.Location = AppResources.SP(x, y + 17);
+            parent.Controls.Add(value);
+        }
+
+        private void AddDetailLine(Control parent, string caption, out Label value, int y)
+        {
+            Label captionLabel = new Label();
+            captionLabel.Text = caption;
+            captionLabel.AutoSize = true;
+            captionLabel.ForeColor = AppResources.Muted;
+            captionLabel.Font = AppResources.Font(8F, FontStyle.Regular);
+            captionLabel.Location = AppResources.SP(16, y);
+            parent.Controls.Add(captionLabel);
+
+            value = new Label();
+            value.Text = "--";
+            value.AutoSize = false;
+            value.TextAlign = ContentAlignment.MiddleRight;
+            value.ForeColor = AppResources.Text;
+            value.Font = AppResources.Font(8.5F, FontStyle.Bold);
+            value.Location = AppResources.SP(126, y - 3);
+            value.Size = AppResources.SS(160, 24);
+            value.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            parent.Controls.Add(value);
         }
 
         private void Tabs_DrawItem(object sender, DrawItemEventArgs e)
@@ -306,7 +591,7 @@ namespace StockNotice
                     if (other.Right > lastRight) lastRight = other.Right;
                 }
 
-                using (SolidBrush strip = new SolidBrush(AppResources.Background))
+                using (SolidBrush strip = new SolidBrush(AppResources.Surface))
                 {
                     if (firstLeft > 0)
                     {
@@ -319,7 +604,7 @@ namespace StockNotice
                 }
             }
 
-            using (SolidBrush back = new SolidBrush(selected ? AppResources.Surface : AppResources.Background))
+            using (SolidBrush back = new SolidBrush(AppResources.Surface))
             {
                 e.Graphics.FillRectangle(back, tab);
             }
@@ -349,33 +634,32 @@ namespace StockNotice
         private Control BuildStockGrid()
         {
             _stockGrid = CreateGrid();
-            AddGridColumn(_stockGrid, "name", "股票", 190F);
-            AddGridColumn(_stockGrid, "price", "最新价", 90F);
-            AddGridColumn(_stockGrid, "change", "涨跌幅", 90F);
-            AddGridColumn(_stockGrid, "base", "基准价", 90F);
-            AddGridColumn(_stockGrid, "up", "上涨阈值", 90F);
-            AddGridColumn(_stockGrid, "down", "下跌阈值", 90F);
-            AddGridColumn(_stockGrid, "reset", "重置幅度", 90F);
-            AddGridColumn(_stockGrid, "state", "状态", 120F);
-            AddGridColumn(_stockGrid, "time", "更新时间", 90F);
+            AddGridColumn(_stockGrid, "name", "股票", 255F, false);
+            AddGridColumn(_stockGrid, "price", "最新价", 90F, true);
+            AddGridColumn(_stockGrid, "change", "涨跌幅", 90F, true);
+            AddGridColumn(_stockGrid, "base", "昨收", 86F, true);
+            AddGridColumn(_stockGrid, "threshold", "阈值", 130F, true);
+            AddGridColumn(_stockGrid, "state", "状态", 145F, false);
+            AddGridColumn(_stockGrid, "time", "更新", 86F, true);
 
             _stockGrid.CellDoubleClick += StockGrid_CellDoubleClick;
             _stockGrid.CellFormatting += StockGrid_CellFormatting;
             _stockGrid.CellMouseDown += StockGrid_CellMouseDown;
+            _stockGrid.SelectionChanged += delegate { RefreshDetailPanel(); };
             return _stockGrid;
         }
 
         private Control BuildHistoryGrid()
         {
             _historyGrid = CreateGrid();
-            AddGridColumn(_historyGrid, "time", "触发时间", 130F);
-            AddGridColumn(_historyGrid, "stock", "股票", 190F);
-            AddGridColumn(_historyGrid, "direction", "方向", 80F);
-            AddGridColumn(_historyGrid, "change", "涨跌幅", 90F);
-            AddGridColumn(_historyGrid, "price", "价格", 90F);
-            AddGridColumn(_historyGrid, "level", "档位", 80F);
-            AddGridColumn(_historyGrid, "number", "通知序号", 90F);
-            AddGridColumn(_historyGrid, "reason", "触发原因", 120F);
+            AddGridColumn(_historyGrid, "time", "触发时间", 130F, true);
+            AddGridColumn(_historyGrid, "stock", "股票", 190F, false);
+            AddGridColumn(_historyGrid, "direction", "方向", 80F, false);
+            AddGridColumn(_historyGrid, "change", "涨跌幅", 90F, true);
+            AddGridColumn(_historyGrid, "price", "价格", 90F, true);
+            AddGridColumn(_historyGrid, "level", "档位", 80F, true);
+            AddGridColumn(_historyGrid, "number", "通知序号", 90F, true);
+            AddGridColumn(_historyGrid, "reason", "触发原因", 120F, false);
             _historyGrid.CellFormatting += HistoryGrid_CellFormatting;
             return _historyGrid;
         }
@@ -403,16 +687,23 @@ namespace StockNotice
             hint.Name = "emptyHint";
             _emptyPanel.Controls.Add(hint);
 
+            Button emptyAdd = CreateButton("添加股票", 106, 34, true, AppGlyph.Add);
+            emptyAdd.Name = "emptyAdd";
+            emptyAdd.Click += AddButton_Click;
+            _emptyPanel.Controls.Add(emptyAdd);
+
             _emptyPanel.Resize += delegate
             {
                 Label titleLabel = _emptyPanel.Controls["emptyTitle"] as Label;
                 Label hintLabel = _emptyPanel.Controls["emptyHint"] as Label;
-                if (titleLabel == null || hintLabel == null) return;
+                Button addLabel = _emptyPanel.Controls["emptyAdd"] as Button;
+                if (titleLabel == null || hintLabel == null || addLabel == null) return;
                 int centerX = Math.Max(0, (_emptyPanel.ClientSize.Width - AppResources.S(360)) / 2);
                 titleLabel.Location = new Point(
                     centerX,
                     Math.Max(AppResources.S(60), _emptyPanel.ClientSize.Height / 2 - AppResources.S(32)));
                 hintLabel.Location = new Point(centerX, titleLabel.Bottom + AppResources.S(10));
+                addLabel.Location = new Point(centerX, hintLabel.Bottom + AppResources.S(18));
             };
 
             return _emptyPanel;
@@ -425,20 +716,12 @@ namespace StockNotice
             status.BackColor = AppResources.Header;
             status.Padding = AppResources.SPad(22, 0, 22, 0);
 
-            _sessionLabel = new Label();
-            _sessionLabel.Text = "读取交易时段";
-            _sessionLabel.ForeColor = AppResources.HeaderText;
-            _sessionLabel.Font = AppResources.Font(8.5F, FontStyle.Bold);
-            _sessionLabel.AutoSize = true;
-            _sessionLabel.Location = AppResources.SP(22, 8);
-            status.Controls.Add(_sessionLabel);
-
             _sessionHintLabel = new Label();
-            _sessionHintLabel.Text = string.Empty;
+            _sessionHintLabel.Text = "下一时段：--";
             _sessionHintLabel.ForeColor = AppResources.HeaderMuted;
             _sessionHintLabel.Font = AppResources.Font(8F, FontStyle.Regular);
             _sessionHintLabel.AutoSize = true;
-            _sessionHintLabel.Location = AppResources.SP(120, 8);
+            _sessionHintLabel.Location = AppResources.SP(22, 8);
             status.Controls.Add(_sessionHintLabel);
 
             _statusLabel = new Label();
@@ -455,13 +738,14 @@ namespace StockNotice
 
         private static DataGridView CreateGrid()
         {
-            DataGridView grid = new DataGridView();
+            DataGridView grid = new BufferedDataGridView();
             grid.Dock = DockStyle.Fill;
             grid.BackgroundColor = AppResources.Surface;
             grid.BorderStyle = BorderStyle.None;
             grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
             grid.GridColor = AppResources.Border;
             grid.RowHeadersVisible = false;
+            grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
             grid.AllowUserToAddRows = false;
             grid.AllowUserToDeleteRows = false;
             grid.AllowUserToResizeRows = false;
@@ -469,9 +753,9 @@ namespace StockNotice
             grid.MultiSelect = false;
             grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             grid.AutoGenerateColumns = false;
-            grid.ColumnHeadersHeight = AppResources.S(40);
+            grid.ColumnHeadersHeight = AppResources.S(38);
             grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-            grid.RowTemplate.Height = AppResources.S(42);
+            grid.RowTemplate.Height = AppResources.S(46);
             grid.EnableHeadersVisualStyles = false;
             grid.ColumnHeadersDefaultCellStyle.BackColor = AppResources.GridHeaderBackground;
             grid.ColumnHeadersDefaultCellStyle.ForeColor = AppResources.Muted;
@@ -480,14 +764,21 @@ namespace StockNotice
             grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = AppResources.Muted;
             grid.DefaultCellStyle.BackColor = AppResources.Surface;
             grid.DefaultCellStyle.ForeColor = AppResources.Text;
+            grid.DefaultCellStyle.Font = AppResources.Font(9F, FontStyle.Regular);
             grid.DefaultCellStyle.SelectionBackColor = AppResources.GridRowSelection;
             grid.DefaultCellStyle.SelectionForeColor = AppResources.Text;
             grid.DefaultCellStyle.Padding = AppResources.SPad(8, 0, 8, 0);
+            grid.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
             grid.AlternatingRowsDefaultCellStyle.BackColor = AppResources.GridAltRow;
             return grid;
         }
 
-        private static void AddGridColumn(DataGridView grid, string name, string title, float weight)
+        private static void AddGridColumn(
+            DataGridView grid,
+            string name,
+            string title,
+            float weight,
+            bool numeric)
         {
             DataGridViewTextBoxColumn column = new DataGridViewTextBoxColumn();
             column.Name = name;
@@ -495,6 +786,11 @@ namespace StockNotice
             column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             column.FillWeight = weight;
             column.SortMode = DataGridViewColumnSortMode.NotSortable;
+            DataGridViewContentAlignment alignment = numeric
+                ? DataGridViewContentAlignment.MiddleRight
+                : DataGridViewContentAlignment.MiddleLeft;
+            column.DefaultCellStyle.Alignment = alignment;
+            column.HeaderCell.Style.Alignment = alignment;
             grid.Columns.Add(column);
         }
 
@@ -519,6 +815,11 @@ namespace StockNotice
 
         private Button CreateButton(string text, int width, int height, bool primary)
         {
+            return CreateButton(text, width, height, primary, null);
+        }
+
+        private Button CreateButton(string text, int width, int height, bool primary, AppGlyph? glyph)
+        {
             Button button = new Button();
             button.Text = text;
             button.Width = AppResources.S(width);
@@ -532,6 +833,44 @@ namespace StockNotice
             button.Font = AppResources.Font(9F, FontStyle.Bold);
             button.Cursor = Cursors.Hand;
             button.UseVisualStyleBackColor = false;
+            button.TextImageRelation = TextImageRelation.ImageBeforeText;
+            button.ImageAlign = string.IsNullOrEmpty(text) ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
+            button.TextAlign = ContentAlignment.MiddleCenter;
+            button.Padding = string.IsNullOrEmpty(text)
+                ? Padding.Empty
+                : AppResources.SPad(8, 0, 9, 0);
+            if (glyph.HasValue)
+            {
+                button.Image = UiIconFactory.Create(
+                    glyph.Value,
+                    primary ? AppResources.OnAccent : AppResources.Text);
+            }
+            return button;
+        }
+
+        private Button CreateHeaderButton(string text, int width, int height, AppGlyph glyph)
+        {
+            Button button = new Button();
+            button.Text = text;
+            button.Width = AppResources.S(width);
+            button.Height = AppResources.S(height);
+            button.Margin = AppResources.SPad(0, 0, 8, 0);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 1;
+            button.FlatAppearance.BorderColor = Color.FromArgb(55, 65, 81);
+            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(31, 41, 55);
+            button.BackColor = Color.FromArgb(24, 32, 46);
+            button.ForeColor = AppResources.HeaderText;
+            button.Font = AppResources.Font(8.5F, FontStyle.Bold);
+            button.Cursor = Cursors.Hand;
+            button.UseVisualStyleBackColor = false;
+            button.TextImageRelation = TextImageRelation.ImageBeforeText;
+            button.ImageAlign = string.IsNullOrEmpty(text) ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
+            button.TextAlign = ContentAlignment.MiddleCenter;
+            button.Padding = string.IsNullOrEmpty(text)
+                ? Padding.Empty
+                : AppResources.SPad(8, 0, 9, 0);
+            button.Image = UiIconFactory.Create(glyph, AppResources.HeaderText);
             return button;
         }
 
@@ -706,6 +1045,7 @@ namespace StockNotice
 
             _state.Stocks.Remove(selected);
             _state.Runtime.Remove(selected.Id);
+            _monitor.ClearQuoteHistory(selected.Id);
             _monitor.RebuildStockIndex();
             SaveState();
             RefreshAll();
@@ -769,9 +1109,8 @@ namespace StockNotice
                     quote == null || !quote.IsValid ? "--" : AppResources.FormatPrice(quote.Price),
                     quote == null || !quote.IsValid ? "--" : AppResources.FormatPercent(change),
                     basePrice > 0m ? AppResources.FormatPrice(basePrice) : "--",
-                    "+" + stock.UpThreshold.ToString("0.00") + "%",
-                    "-" + stock.DownThreshold.ToString("0.00") + "%",
-                    stock.ResetMargin.ToString("0.00") + "%",
+                    "+" + stock.UpThreshold.ToString("0.00") + "% / -"
+                        + stock.DownThreshold.ToString("0.00") + "%",
                     BuildRuntimeStatus(stock, quote, change, runtime),
                     quote == null ? "--" : AppResources.FormatTime(quote.Timestamp));
 
@@ -787,6 +1126,143 @@ namespace StockNotice
             {
                 SelectStock(selectedId);
             }
+            else if (_stockGrid.Rows.Count > 0)
+            {
+                SelectStock(Convert.ToString(_stockGrid.Rows[0].Tag));
+            }
+            RefreshDetailPanel();
+        }
+
+        private void RefreshDetailPanel()
+        {
+            if (_detailNameLabel == null) return;
+
+            StockConfig stock = GetSelectedStock();
+            if (stock == null)
+            {
+                _detailNameLabel.Text = "请选择股票";
+                _detailCodeLabel.Text = "--";
+                _detailPriceLabel.Text = "--";
+                _detailPriceLabel.ForeColor = AppResources.Muted;
+                _detailChangeLabel.Text = "--";
+                _detailChangeLabel.ForeColor = AppResources.Muted;
+                _detailStatusPill.Text = "等待行情";
+                _detailStatusPill.PillColor = AppResources.FieldBackground;
+                _detailStatusPill.ForeColor = AppResources.Muted;
+                _detailBaseLabel.Text = "--";
+                _detailChangeValueLabel.Text = "--";
+                _detailUpLabel.Text = "--";
+                _detailDownLabel.Text = "--";
+                _detailResetLabel.Text = "--";
+                _detailFreshnessLabel.Text = "--";
+                _detailCooldownLabel.Text = "--";
+                _detailQuietLabel.Text = "--";
+                _detailChart.SetQuotes(null, 0m);
+                LayoutDetailStatus();
+                return;
+            }
+
+            Quote quote = _monitor.GetQuote(stock.Id);
+            StockRuntimeState runtime = _state.GetRuntime(stock.Id, MarketClock.TodayKey());
+            decimal change = quote != null && quote.IsValid
+                ? CalculateChange(stock, quote)
+                : 0m;
+            decimal basePrice = ResolveDisplayBase(stock, quote);
+            string status = BuildRuntimeStatus(stock, quote, change, runtime);
+            Color statusColor = ResolveDetailStatusColor(stock, quote, change, status);
+
+            _detailNameLabel.Text = string.IsNullOrEmpty(stock.Name) ? stock.Code : stock.Name;
+            _detailCodeLabel.Text = stock.Symbol + " · " + MarketNames.Display(stock.Market);
+            _detailStatusPill.Text = status;
+            _detailStatusPill.PillColor = BlendColor(statusColor, AppResources.Surface, 0.13f);
+            _detailStatusPill.ForeColor = statusColor;
+            LayoutDetailStatus();
+
+            if (quote != null && quote.IsValid)
+            {
+                _detailPriceLabel.Text = AppResources.FormatPrice(quote.Price);
+                _detailPriceLabel.ForeColor = AppResources.ChangeColor(change);
+                decimal amount = basePrice > 0m ? quote.Price - basePrice : 0m;
+                string arrow = change > 0m ? "↑ +" : (change < 0m ? "↓ " : string.Empty);
+                _detailChangeLabel.Text = amount == 0m
+                    ? AppResources.FormatPercent(change)
+                    : arrow + amount.ToString("0.00") + "   " + AppResources.FormatPercent(change);
+                _detailChangeLabel.ForeColor = AppResources.ChangeColor(change);
+            }
+            else
+            {
+                _detailPriceLabel.Text = "--";
+                _detailPriceLabel.ForeColor = AppResources.Muted;
+                _detailChangeLabel.Text = quote == null ? "等待行情" : (quote.Error ?? "行情异常");
+                _detailChangeLabel.ForeColor = AppResources.Muted;
+            }
+
+            _detailBaseLabel.Text = basePrice > 0m ? AppResources.FormatPrice(basePrice) : "--";
+            _detailChangeValueLabel.Text = quote != null && quote.IsValid
+                ? AppResources.FormatPercent(change)
+                : "--";
+            _detailChangeValueLabel.ForeColor = AppResources.ChangeColor(change);
+            _detailUpLabel.Text = "+" + stock.UpThreshold.ToString("0.00") + "%";
+            _detailUpLabel.ForeColor = AppResources.Up;
+            _detailDownLabel.Text = "-" + stock.DownThreshold.ToString("0.00") + "%";
+            _detailDownLabel.ForeColor = AppResources.Down;
+            _detailResetLabel.Text = stock.ResetMargin.ToString("0.00") + "%";
+            _detailCooldownLabel.Text = _state.Settings.AlertCooldownSeconds.ToString() + " 秒";
+            _detailQuietLabel.Text = _state.Settings.QuietHoursEnabled
+                ? _state.Settings.QuietHoursStart + "–" + _state.Settings.QuietHoursEnd
+                : "未启用";
+
+            if (quote == null || quote.Timestamp == DateTime.MinValue)
+            {
+                _detailFreshnessLabel.Text = "等待行情";
+            }
+            else
+            {
+                int age = Math.Max(0, (int)(MarketClock.Now() - quote.Timestamp).TotalSeconds);
+                _detailFreshnessLabel.Text = age.ToString() + " 秒";
+                _detailFreshnessLabel.ForeColor = MarketClock.IsQuoteFresh(
+                    quote,
+                    MarketClock.Now(),
+                    TimeSpan.FromSeconds(_state.Settings.StaleQuoteSeconds))
+                    ? AppResources.Text
+                    : AppResources.Up;
+            }
+
+            _detailChart.SetQuotes(_monitor.GetQuoteHistory(stock.Id), basePrice);
+        }
+
+        private void LayoutDetailStatus()
+        {
+            if (_detailStatusPill == null) return;
+            Control parent = _detailStatusPill.Parent;
+            if (parent == null) return;
+            _detailStatusPill.Left = Math.Max(
+                AppResources.S(16),
+                parent.ClientSize.Width - _detailStatusPill.Width - AppResources.S(16));
+        }
+
+        private Color ResolveDetailStatusColor(
+            StockConfig stock,
+            Quote quote,
+            decimal change,
+            string status)
+        {
+            if (!stock.Enabled) return AppResources.Muted;
+            if (quote == null) return AppResources.Muted;
+            if (!quote.IsValid) return AppResources.Up;
+            if (status.StartsWith("行情陈旧", StringComparison.Ordinal)) return AppResources.Up;
+            if (change > stock.UpThreshold) return AppResources.Up;
+            if (change < -stock.DownThreshold) return AppResources.Down;
+            return AppResources.Down;
+        }
+
+        private static Color BlendColor(Color foreground, Color background, float foregroundAmount)
+        {
+            float amount = Math.Max(0f, Math.Min(1f, foregroundAmount));
+            return Color.FromArgb(
+                (int)Math.Round(foreground.R * amount + background.R * (1f - amount)),
+                (int)Math.Round(foreground.G * amount + background.G * (1f - amount)),
+                (int)Math.Round(foreground.B * amount + background.B * (1f - amount)));
         }
 
         private void RefreshHistoryGrid()
@@ -824,23 +1300,39 @@ namespace StockNotice
             _providerLabel.Text = _monitor.ProviderName;
             RefreshDataHealth();
             _monitorButton.Text = _state.Settings.MonitoringEnabled ? "暂停监控" : "继续监控";
+            SetButtonGlyph(
+                _monitorButton,
+                _state.Settings.MonitoringEnabled ? AppGlyph.Pause : AppGlyph.Play,
+                AppResources.HeaderText);
 
             DateTime now = MarketClock.Now();
             bool session = MarketClock.IsTradingSession(now);
             bool quiet = AlertPolicy.IsQuietTime(_state.Settings, now);
             _sessionLabel.Text = quiet
-                ? "免打扰时段"
+                ? "免打扰 · " + now.ToString("HH:mm:ss")
                 : session
-                ? (_state.Settings.MonitoringEnabled ? "交易中 · 监控运行" : "交易中 · 已暂停")
-                : MarketClock.GetSessionText(now) + " · 已暂停检查";
-            _sessionLabel.ForeColor = session && _state.Settings.MonitoringEnabled && !quiet
-                ? AppResources.SessionActive
-                : AppResources.HeaderText;
+                ? (_state.Settings.MonitoringEnabled ? "交易中 · " : "已暂停 · ") + now.ToString("HH:mm:ss")
+                : MarketClock.GetSessionText(now);
+            _sessionLabel.PillColor = quiet
+                ? Color.FromArgb(82, 61, 26)
+                : (session && _state.Settings.MonitoringEnabled
+                    ? Color.FromArgb(30, 77, 61)
+                    : Color.FromArgb(31, 41, 55));
+            _sessionLabel.ForeColor = quiet
+                ? Color.FromArgb(245, 196, 108)
+                : (session && _state.Settings.MonitoringEnabled
+                    ? Color.FromArgb(126, 240, 184)
+                    : AppResources.HeaderMuted);
             _sessionHintLabel.Text = "下一时段：" + MarketClock.GetNextSessionText(now);
-            // Keep the hint glued to the right of the (variable width) session text.
-            _sessionHintLabel.Left = _sessionLabel.Right + AppResources.S(12);
             UpdateStatusDisplay(_monitor.StatusMessage);
             _tray.Text = _state.Settings.MonitoringEnabled ? "股票涨跌提醒 · 监控中" : "股票涨跌提醒 · 已暂停";
+        }
+
+        private static void SetButtonGlyph(Button button, AppGlyph glyph, Color color)
+        {
+            Image old = button.Image;
+            button.Image = UiIconFactory.Create(glyph, color);
+            if (old != null) old.Dispose();
         }
 
         private void RefreshDataHealth()
@@ -849,6 +1341,7 @@ namespace StockNotice
             {
                 _healthLabel.Text = "等待行情";
                 _healthLabel.ForeColor = AppResources.Muted;
+                SetHeaderHealth("等待行情", false);
                 return;
             }
 
@@ -857,6 +1350,8 @@ namespace StockNotice
                 _healthLabel.Text = "行情异常 · "
                     + _monitor.ConsecutiveFailures.ToString() + " 次失败";
                 _healthLabel.ForeColor = AppResources.Up;
+                SetHeaderHealth("行情异常 · "
+                    + _monitor.ConsecutiveFailures.ToString() + " 次失败", false);
                 return;
             }
 
@@ -865,11 +1360,30 @@ namespace StockNotice
             {
                 _healthLabel.Text = "数据陈旧 · " + age.ToString() + " 秒前";
                 _healthLabel.ForeColor = AppResources.Up;
+                SetHeaderHealth("数据陈旧 · " + age.ToString() + " 秒前", false);
                 return;
             }
 
             _healthLabel.Text = "正常 · " + Math.Max(0, age).ToString() + " 秒前";
             _healthLabel.ForeColor = AppResources.Text;
+            SetHeaderHealth(
+                _monitor.ProviderName + " · 正常 · " + Math.Max(0, age).ToString() + " 秒前",
+                true);
+        }
+
+        private void SetHeaderHealth(string text, bool healthy)
+        {
+            _headerHealthPill.Text = text;
+            _headerHealthPill.PillColor = healthy
+                ? Color.FromArgb(28, 48, 42)
+                : Color.FromArgb(58, 35, 39);
+            _headerHealthPill.ForeColor = healthy
+                ? Color.FromArgb(126, 240, 184)
+                : Color.FromArgb(255, 142, 142);
+            _headerHealthPill.PillBorderColor = healthy
+                ? Color.FromArgb(45, 76, 63)
+                : Color.FromArgb(91, 51, 58);
+            _headerHealthPill.DrawPillBorder = true;
         }
 
         private static decimal CalculateChange(StockConfig stock, Quote quote)
@@ -1034,15 +1548,21 @@ namespace StockNotice
             bool session = MarketClock.IsTradingSession(now);
             bool quiet = AlertPolicy.IsQuietTime(_state.Settings, now);
             _sessionLabel.Text = quiet
-                ? "免打扰时段"
+                ? "免打扰 · " + now.ToString("HH:mm:ss")
                 : session
-                ? (_state.Settings.MonitoringEnabled ? "交易中 · 监控运行" : "交易中 · 已暂停")
-                : MarketClock.GetSessionText(now) + " · 已暂停检查";
-            _sessionLabel.ForeColor = session && _state.Settings.MonitoringEnabled && !quiet
-                ? AppResources.SessionActive
-                : AppResources.HeaderText;
+                ? (_state.Settings.MonitoringEnabled ? "交易中 · " : "已暂停 · ") + now.ToString("HH:mm:ss")
+                : MarketClock.GetSessionText(now);
+            _sessionLabel.PillColor = quiet
+                ? Color.FromArgb(82, 61, 26)
+                : (session && _state.Settings.MonitoringEnabled
+                    ? Color.FromArgb(30, 77, 61)
+                    : Color.FromArgb(31, 41, 55));
+            _sessionLabel.ForeColor = quiet
+                ? Color.FromArgb(245, 196, 108)
+                : (session && _state.Settings.MonitoringEnabled
+                    ? Color.FromArgb(126, 240, 184)
+                    : AppResources.HeaderMuted);
             _sessionHintLabel.Text = "下一时段：" + MarketClock.GetNextSessionText(now);
-            _sessionHintLabel.Left = _sessionLabel.Right + AppResources.S(12);
             if (DateTime.Now >= _alertBannerUntil)
             {
                 UpdateStatusDisplay(_monitor.StatusMessage);
@@ -1119,6 +1639,7 @@ namespace StockNotice
                 if (_trayIcon != null) _trayIcon.Dispose();
                 if (_tabFont != null) _tabFont.Dispose();
                 if (_tabFontBold != null) _tabFontBold.Dispose();
+                if (_toolTip != null) _toolTip.Dispose();
                 if (_marketData != null) _marketData.Dispose();
             }
             base.Dispose(disposing);

@@ -53,6 +53,7 @@ namespace StockNotice
         private readonly RuleEngine _ruleEngine;
         private readonly object _sync = new object();
         private readonly Dictionary<string, Quote> _quotes;
+        private readonly Dictionary<string, List<Quote>> _quoteHistory;
         private readonly Dictionary<string, StockConfig> _stocksById;
 
         private Timer _timer;
@@ -76,6 +77,7 @@ namespace StockNotice
             _marketData = marketData;
             _ruleEngine = ruleEngine;
             _quotes = new Dictionary<string, Quote>();
+            _quoteHistory = new Dictionary<string, List<Quote>>();
             _stocksById = new Dictionary<string, StockConfig>();
             _statusMessage = "等待首次检查";
             _providerName = "免费公开行情源";
@@ -166,6 +168,28 @@ namespace StockNotice
             }
         }
 
+        public List<Quote> GetQuoteHistory(string stockId)
+        {
+            lock (_sync)
+            {
+                List<Quote> history;
+                if (!_quoteHistory.TryGetValue(stockId, out history) || history == null)
+                {
+                    return new List<Quote>();
+                }
+                return new List<Quote>(history);
+            }
+        }
+
+        public void ClearQuoteHistory(string stockId)
+        {
+            lock (_sync)
+            {
+                _quoteHistory.Remove(stockId);
+                _quotes.Remove(stockId);
+            }
+        }
+
         public void LoadDemoQuotes(Dictionary<string, Quote> quotes, string status)
         {
             lock (_sync)
@@ -176,6 +200,7 @@ namespace StockNotice
                     foreach (KeyValuePair<string, Quote> pair in quotes)
                     {
                         _quotes[pair.Key] = pair.Value;
+                    AddQuoteHistory(pair.Key, pair.Value);
                     }
                 }
                 _providerName = "演示数据";
@@ -285,6 +310,7 @@ namespace StockNotice
                 foreach (KeyValuePair<string, Quote> pair in received)
                 {
                     _quotes[pair.Key] = pair.Value;
+                    AddQuoteHistory(pair.Key, pair.Value);
                     StockConfig stock = _stocksById.ContainsKey(pair.Key) ? _stocksById[pair.Key] : null;
                     if (stock != null && !string.IsNullOrEmpty(pair.Value.Name))
                     {
@@ -547,6 +573,24 @@ namespace StockNotice
                 if (string.Equals(stocks[i].Code, code, StringComparison.Ordinal)) return stocks[i];
             }
             return null;
+        }
+
+        private void AddQuoteHistory(string stockId, Quote quote)
+        {
+            if (string.IsNullOrEmpty(stockId) || quote == null || !quote.IsValid) return;
+
+            List<Quote> history;
+            if (!_quoteHistory.TryGetValue(stockId, out history) || history == null)
+            {
+                history = new List<Quote>();
+                _quoteHistory[stockId] = history;
+            }
+
+            history.Add(quote);
+            while (history.Count > 40)
+            {
+                history.RemoveAt(0);
+            }
         }
 
         private int CalculateDataAgeSeconds()

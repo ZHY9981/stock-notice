@@ -33,6 +33,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1
 - `AkShareQuoteParser.cs`：AKShare 个股报价协议解析。
 - `AppLogger.cs`：运行日志和日志目录回退。
 - `StartupCheck.cs`：启动自检。
+- `UiControls.cs`：通用视觉控件和本地图标绘制。
 - `JsonStateStore.cs`：`state.json` 持久化和容错。
 - `AppResources.cs`：颜色、主题和高 DPI 尺寸。
 
@@ -56,6 +57,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1
 - 不直接编辑或重置 `build\data\state.json` 中的用户配置和历史记录。
 - 保留单实例、系统托盘、关闭后后台监控和开机启动行为。
 - 不删除现有主题，不把界面颜色分散到各个窗口。
+- 操作按钮使用蓝色 `Accent`；红色和绿色仅用于上涨、下跌和对应风险状态。
+- 主窗口保持“顶部状态、紧凑指标、左侧监控表、右侧详情”的终端布局。
 - 冷却和免打扰只能抑制通知投递，不能丢失触发记录。
 - 日志写入失败不能让监控线程退出。
 

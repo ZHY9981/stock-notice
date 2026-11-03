@@ -17,6 +17,8 @@ Windows 系统通知提醒，点击通知可回到主窗口并定位到对应股
   取到行情后会自动补全。
 - 高 DPI 清晰显示：程序声明了系统 DPI 感知，并按当前缩放比例等比缩放所有尺寸，
   所以在 125% / 150% / 200% 缩放下文字是原生绘制的，不会被 Windows 拉伸变模糊。
+- 专业行情终端布局：深色状态顶栏、紧凑指标条、高密度监控表、右侧股票详情和
+  本地行情折线；蓝色表示操作，红色和绿色只表示上涨与下跌。
 - 逐只配置阈值：上涨阈值、下跌阈值、重新触发所需的重置幅度都按百分比单独设置。
 - 自定义基准：默认用昨日收盘价，可临时指定某天的自定义基准价，仅当天生效，次日自动回到昨日收盘价。
 - 交易日历：使用 AKShare 提供的完整 A 股交易日数据，自动排除周末和法定休市。
@@ -52,6 +54,7 @@ stock-notice/
     MarketDataProvider.cs  行情来源（AKShare / 东方财富 / 腾讯）
     IMarketQuoteProvider.cs 行情源接口
     AkShareQuoteParser.cs  AKShare 个股行情字段解析
+    UiControls.cs      圆角面板、状态标签、图标和行情折线控件
     AppLogger.cs       滚动异常日志
     StartupCheck.cs    启动自检
     trading-calendar.json  AKShare 交易日数据（嵌入程序）

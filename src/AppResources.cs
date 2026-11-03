@@ -150,27 +150,27 @@ namespace StockNotice
         private static Palette Default()
         {
             Palette p = new Palette();
-            p.Background = Color.FromArgb(244, 246, 248);
+            p.Background = Color.FromArgb(245, 247, 250);
             p.Surface = Color.White;
-            p.Header = Color.FromArgb(24, 32, 46);
+            p.Header = Color.FromArgb(17, 24, 39);
             p.HeaderMuted = Color.FromArgb(177, 186, 201);
             p.HeaderText = Color.White;
-            p.Text = Color.FromArgb(31, 41, 55);
-            p.Muted = Color.FromArgb(107, 114, 128);
-            p.Border = Color.FromArgb(226, 232, 240);
-            p.Up = Color.FromArgb(210, 46, 58);
-            p.Down = Color.FromArgb(7, 148, 85);
-            p.Accent = Color.FromArgb(214, 62, 53);
-            p.AccentHover = Color.FromArgb(188, 47, 40);
+            p.Text = Color.FromArgb(24, 32, 44);
+            p.Muted = Color.FromArgb(102, 112, 133);
+            p.Border = Color.FromArgb(227, 232, 239);
+            p.Up = Color.FromArgb(211, 58, 58);
+            p.Down = Color.FromArgb(7, 133, 82);
+            p.Accent = Color.FromArgb(59, 111, 245);
+            p.AccentHover = Color.FromArgb(47, 94, 216);
             p.Secondary = Color.FromArgb(72, 84, 103);
             p.GridHeaderBackground = Color.FromArgb(248, 250, 252);
-            p.GridRowSelection = Color.FromArgb(255, 241, 240);
+            p.GridRowSelection = Color.FromArgb(234, 240, 255);
             p.GridAltRow = Color.FromArgb(252, 253, 254);
             p.ButtonBorder = Color.FromArgb(203, 213, 225);
             p.FieldBackground = Color.FromArgb(248, 250, 252);
             p.OnAccent = Color.White;
             p.SessionActive = Color.FromArgb(105, 240, 174);
-            p.IconCircle = Color.FromArgb(24, 32, 46);
+            p.IconCircle = Color.FromArgb(17, 24, 39);
             p.IconGlyph = Color.White;
             return p;
         }
@@ -188,11 +188,11 @@ namespace StockNotice
             p.Border = Color.FromArgb(44, 49, 58);
             p.Up = Color.FromArgb(255, 92, 92);
             p.Down = Color.FromArgb(46, 204, 113);
-            p.Accent = Color.FromArgb(224, 74, 64);
-            p.AccentHover = Color.FromArgb(240, 102, 92);
+            p.Accent = Color.FromArgb(111, 143, 255);
+            p.AccentHover = Color.FromArgb(135, 160, 255);
             p.Secondary = Color.FromArgb(150, 158, 170);
             p.GridHeaderBackground = Color.FromArgb(32, 36, 42);
-            p.GridRowSelection = Color.FromArgb(62, 40, 42);
+            p.GridRowSelection = Color.FromArgb(32, 42, 69);
             p.GridAltRow = Color.FromArgb(31, 34, 40);
             p.ButtonBorder = Color.FromArgb(62, 68, 78);
             p.FieldBackground = Color.FromArgb(34, 38, 44);
@@ -216,11 +216,11 @@ namespace StockNotice
             p.Border = Color.FromArgb(202, 208, 216);
             p.Up = Color.FromArgb(200, 32, 45);
             p.Down = Color.FromArgb(6, 130, 74);
-            p.Accent = Color.FromArgb(200, 32, 45);
-            p.AccentHover = Color.FromArgb(168, 24, 36);
+            p.Accent = Color.FromArgb(37, 99, 235);
+            p.AccentHover = Color.FromArgb(29, 78, 216);
             p.Secondary = Color.FromArgb(60, 68, 80);
             p.GridHeaderBackground = Color.FromArgb(238, 240, 243);
-            p.GridRowSelection = Color.FromArgb(236, 240, 246);
+            p.GridRowSelection = Color.FromArgb(235, 241, 253);
             p.GridAltRow = Color.FromArgb(249, 250, 252);
             p.ButtonBorder = Color.FromArgb(176, 184, 194);
             p.FieldBackground = Color.FromArgb(244, 246, 249);
