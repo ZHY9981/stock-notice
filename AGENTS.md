@@ -28,6 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1
 - `RuleEngine.cs`：涨跌阈值状态机，是核心业务逻辑。
 - `AlertPolicy.cs`：冷却时间和免打扰时段的投递决策。
 - `DailySummary.cs`：收盘汇总文本构建（纯逻辑，可离线测试）。
+- `QuoteHistoryStore.cs`：当天行情样本落盘，供详情折线在重启后恢复。
 - `TradingCalendar.cs`：嵌入式 A 股交易日历。
 - `MarketDataProvider.cs`：行情源选择和降级。
 - `IMarketQuoteProvider.cs`：可替换行情源接口。

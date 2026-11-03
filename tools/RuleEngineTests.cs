@@ -307,6 +307,7 @@ namespace StockNotice.Tests
 
             RunSessionChecks();
             RunDailySummaryChecks();
+            RunQuoteHistoryChecks();
 
             Console.WriteLine();
             if (_failures == 0)
@@ -436,6 +437,42 @@ namespace StockNotice.Tests
             // No quote at all means there is nothing worth notifying.
             DailySummaryReport emptyReport = DailySummary.Build(day, manyStocks, new Dictionary<string, Quote>(), new List<TriggerRecord>());
             Check("summary needs at least one quote", emptyReport == null, true);
+        }
+
+        private static void RunQuoteHistoryChecks()
+        {
+            string directory = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                "stocknotice-history-" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(directory);
+            try
+            {
+                QuoteHistoryStore store = new QuoteHistoryStore(directory);
+
+                Dictionary<string, List<Quote>> history = new Dictionary<string, List<Quote>>();
+                List<Quote> samples = new List<Quote>();
+                Quote quote = new Quote();
+                quote.Price = 10.5m;
+                quote.Timestamp = new DateTime(2026, 11, 4, 10, 0, 0);
+                quote.IsValid = true;
+                samples.Add(quote);
+                history["a"] = samples;
+
+                store.Save("2026-11-04", history);
+
+                Dictionary<string, List<Quote>> loaded;
+                Check("history round trip", store.TryLoad("2026-11-04", out loaded), true);
+                Check("history keeps sample", loaded["a"][0].Price, 10.5m);
+                Check("history keeps one series", loaded.Count, 1);
+                Check("history rejects another day", store.TryLoad("2026-11-05", out loaded), false);
+
+                System.IO.File.WriteAllText(store.Path, "not json");
+                Check("history ignores corrupt file", store.TryLoad("2026-11-04", out loaded), false);
+            }
+            finally
+            {
+                try { System.IO.Directory.Delete(directory, true); } catch { }
+            }
         }
 
         private static StockConfig SummaryStock(string id, string code, string name)

@@ -55,6 +55,7 @@ namespace StockNotice
         private readonly Dictionary<string, Quote> _quotes;
         private readonly Dictionary<string, List<Quote>> _quoteHistory;
         private readonly Dictionary<string, StockConfig> _stocksById;
+        private readonly QuoteHistoryStore _historyStore;
 
         private Timer _timer;
         private int _busy;
@@ -70,6 +71,7 @@ namespace StockNotice
         private string _lastSummaryDate;
         private DateTime _lastStaleLogAt;
         private int _lastStaleCount;
+        private DateTime _lastHistorySaveAt;
 
         public event EventHandler<TriggerEventArgs> TriggerRaised;
         public event EventHandler<MonitorSnapshotEventArgs> SnapshotUpdated;
@@ -91,6 +93,13 @@ namespace StockNotice
             _lastSummaryDate = _state.Settings == null ? string.Empty : _state.Settings.LastSummaryDate;
             _lastStaleLogAt = DateTime.MinValue;
             _lastStaleCount = 0;
+            _lastHistorySaveAt = DateTime.MinValue;
+
+            string dataDirectory = store == null || string.IsNullOrEmpty(store.StatePath)
+                ? null
+                : System.IO.Path.GetDirectoryName(store.StatePath);
+            _historyStore = new QuoteHistoryStore(dataDirectory);
+            LoadQuoteHistory();
         }
 
         public string StatusMessage
@@ -149,6 +158,36 @@ namespace StockNotice
             Timer timer = _timer;
             _timer = null;
             if (timer != null) timer.Dispose();
+            SaveQuoteHistory();
+        }
+
+        private void LoadQuoteHistory()
+        {
+            Dictionary<string, List<Quote>> stored;
+            if (!_historyStore.TryLoad(MarketClock.TodayKey(), out stored)) return;
+
+            foreach (KeyValuePair<string, List<Quote>> pair in stored)
+            {
+                _quoteHistory[pair.Key] = pair.Value;
+            }
+        }
+
+        private void SaveQuoteHistory()
+        {
+            // Demo samples must never overwrite the real intraday chart.
+            if (string.Equals(_providerName, "演示数据", StringComparison.Ordinal)) return;
+
+            try
+            {
+                lock (_sync)
+                {
+                    _historyStore.Save(MarketClock.TodayKey(), _quoteHistory);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warn("Quote history save failed: " + ex.Message);
+            }
         }
 
         public void RebuildStockIndex()
@@ -497,6 +536,12 @@ namespace StockNotice
             else
             {
                 _lastStaleCount = 0;
+            }
+
+            if (chinaNow - _lastHistorySaveAt >= TimeSpan.FromMinutes(5))
+            {
+                _lastHistorySaveAt = chinaNow;
+                SaveQuoteHistory();
             }
 
             if (newTriggers.Count > 0)
