@@ -126,19 +126,17 @@ namespace StockNotice
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 1;
-            root.RowCount = 5;
+            root.RowCount = 4;
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(64F)));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(52F)));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(66F)));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(32F)));
             Controls.Add(root);
 
             root.Controls.Add(BuildHeader(), 0, 0);
             root.Controls.Add(BuildToolbar(), 0, 1);
-            root.Controls.Add(BuildStatsStrip(), 0, 2);
-            root.Controls.Add(BuildContent(), 0, 3);
-            root.Controls.Add(BuildStatusBar(), 0, 4);
+            root.Controls.Add(BuildContent(), 0, 2);
+            root.Controls.Add(BuildStatusBar(), 0, 3);
         }
 
         private Control BuildHeader()
@@ -179,19 +177,17 @@ namespace StockNotice
             subtitle.Location = AppResources.SP(70, 35);
             header.Controls.Add(subtitle);
 
-            FlowLayoutPanel statusGroup = new FlowLayoutPanel();
-            statusGroup.AutoSize = true;
-            statusGroup.WrapContents = false;
-            statusGroup.FlowDirection = FlowDirection.LeftToRight;
-            statusGroup.Location = AppResources.SP(322, 16);
-            statusGroup.Margin = Padding.Empty;
+            header.Controls.Add(CreateHeaderMetric("监控", out _stockCountLabel, 58, 316));
+            header.Controls.Add(CreateHeaderMetric("今日触发", out _triggerCountLabel, 78, 384));
+            header.Controls.Add(CreateHeaderMetric("行情时间", out _updateLabel, 96, 472));
+            header.Controls.Add(CreateHeaderMetric("状态", out _healthLabel, 140, 578));
 
             _sessionLabel = new StatusPill();
             _sessionLabel.Text = "交易中 · --:--:--";
             _sessionLabel.PillColor = Color.FromArgb(30, 77, 61);
             _sessionLabel.ForeColor = Color.FromArgb(126, 240, 184);
-            _sessionLabel.Margin = AppResources.SPad(0, 0, 8, 0);
-            statusGroup.Controls.Add(_sessionLabel);
+            _sessionLabel.Location = AppResources.SP(736, 21);
+            header.Controls.Add(_sessionLabel);
 
             _headerHealthPill = new StatusPill();
             _headerHealthPill.Text = "等待行情";
@@ -199,8 +195,7 @@ namespace StockNotice
             _headerHealthPill.ForeColor = AppResources.HeaderMuted;
             _headerHealthPill.DrawPillBorder = true;
             _headerHealthPill.PillBorderColor = Color.FromArgb(55, 65, 81);
-            statusGroup.Controls.Add(_headerHealthPill);
-            header.Controls.Add(statusGroup);
+            _headerHealthPill.Visible = false;
 
             FlowLayoutPanel right = new FlowLayoutPanel();
             right.Dock = DockStyle.Right;
@@ -222,6 +217,34 @@ namespace StockNotice
 
             header.Controls.Add(right);
             return header;
+        }
+
+        private Panel CreateHeaderMetric(string caption, out Label valueLabel, int width, int left)
+        {
+            Panel block = new Panel();
+            block.Width = AppResources.S(width);
+            block.Height = AppResources.S(42);
+            block.Location = AppResources.SP(left, 11);
+            block.BackColor = AppResources.Header;
+
+            Label captionLabel = new Label();
+            captionLabel.Text = caption;
+            captionLabel.ForeColor = AppResources.HeaderMuted;
+            captionLabel.Font = AppResources.Font(7.5F, FontStyle.Regular);
+            captionLabel.AutoSize = true;
+            captionLabel.Location = AppResources.SP(0, 1);
+            block.Controls.Add(captionLabel);
+
+            valueLabel = new Label();
+            valueLabel.Text = "--";
+            valueLabel.ForeColor = AppResources.HeaderText;
+            valueLabel.Font = AppResources.Font(10F, FontStyle.Bold);
+            valueLabel.AutoSize = false;
+            valueLabel.AutoEllipsis = true;
+            valueLabel.Location = AppResources.SP(0, 17);
+            valueLabel.Size = AppResources.SS(width, 22);
+            block.Controls.Add(valueLabel);
+            return block;
         }
 
         private Control BuildToolbar()
@@ -753,6 +776,16 @@ namespace StockNotice
             _statusLabel.ForeColor = AppResources.HeaderMuted;
             _statusLabel.Font = AppResources.Font(8F, FontStyle.Regular);
             status.Controls.Add(_statusLabel);
+
+            _providerLabel = new Label();
+            _providerLabel.Text = "--";
+            _providerLabel.TextAlign = ContentAlignment.MiddleRight;
+            _providerLabel.Dock = DockStyle.Right;
+            _providerLabel.Width = AppResources.S(190);
+            _providerLabel.ForeColor = Color.FromArgb(140, 154, 179);
+            _providerLabel.Font = AppResources.Font(8F, FontStyle.Regular);
+            status.Controls.Add(_providerLabel);
+
             _statusLabel.BringToFront();
             return status;
         }
@@ -1389,7 +1422,7 @@ namespace StockNotice
             if (_monitor.LastFetchAt == DateTime.MinValue)
             {
                 _healthLabel.Text = "等待行情";
-                _healthLabel.ForeColor = AppResources.Muted;
+                _healthLabel.ForeColor = AppResources.HeaderMuted;
                 SetHeaderHealth("等待行情", false);
                 return;
             }
@@ -1398,7 +1431,7 @@ namespace StockNotice
             {
                 _healthLabel.Text = "行情异常 · "
                     + _monitor.ConsecutiveFailures.ToString() + " 次失败";
-                _healthLabel.ForeColor = AppResources.Up;
+                _healthLabel.ForeColor = Color.FromArgb(255, 142, 142);
                 SetHeaderHealth("行情异常 · "
                     + _monitor.ConsecutiveFailures.ToString() + " 次失败", false);
                 return;
@@ -1413,19 +1446,19 @@ namespace StockNotice
                     string session = MarketClock.GetSessionText(now);
                     string closedText = session + " · " + AppResources.FormatTime(_monitor.LastFetchAt);
                     _healthLabel.Text = closedText;
-                    _healthLabel.ForeColor = AppResources.Muted;
+                    _healthLabel.ForeColor = AppResources.HeaderMuted;
                     SetHeaderHealth(closedText, true);
                     return;
                 }
 
                 _healthLabel.Text = "数据陈旧 · " + age.ToString() + " 秒前";
-                _healthLabel.ForeColor = AppResources.Up;
+                _healthLabel.ForeColor = Color.FromArgb(255, 142, 142);
                 SetHeaderHealth("数据陈旧 · " + age.ToString() + " 秒前", false);
                 return;
             }
 
             _healthLabel.Text = "正常 · " + Math.Max(0, age).ToString() + " 秒前";
-            _healthLabel.ForeColor = AppResources.Text;
+            _healthLabel.ForeColor = AppResources.HeaderText;
             SetHeaderHealth(
                 _monitor.ProviderName + " · 正常 · " + Math.Max(0, age).ToString() + " 秒前",
                 true);
