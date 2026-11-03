@@ -43,13 +43,21 @@ namespace StockNotice.Tests
             Check("second step notifies", t4.ShouldNotify, true);
             Check("second step count", t4.NotificationNumber, 3);
 
-            // 4. At most three notifications per cycle.
+            // 4. A new 1% level refreshes the burst allowance, so a stock that
+            //    keeps climbing keeps notifying instead of going silent.
             RuleTrigger t5 = Evaluate(engine, stock, runtime, day, 6.5m, false).UpTrigger;
-            Check("fourth level is capped", t5.ShouldNotify, false);
+            Check("fourth level refreshes allowance", t5.ShouldNotify, true);
+            Check("fourth level keeps counting", t5.NotificationNumber, 4);
 
-            // 5. Dropping clearly below the threshold re-arms the cycle.
+            // 5. Repeating the same level stays quiet, the next level notifies again.
             RuleTrigger t6 = Evaluate(engine, stock, runtime, day, 6.5m, false).UpTrigger;
-            Check("still capped above threshold", t6.ShouldNotify, false);
+            Check("same level stays quiet", t6.ShouldNotify, false);
+
+            RuleTrigger t6b = Evaluate(engine, stock, runtime, day, 7.6m, false).UpTrigger;
+            Check("fifth level notifies", t6b.ShouldNotify, true);
+            Check("fifth level count continues", t6b.NotificationNumber, 5);
+
+            // 6. Dropping clearly below the threshold re-arms the cycle.
 
             RuleTrigger idle = Evaluate(engine, stock, runtime, day, 2.0m, false).UpTrigger;
             Check("drop below reset margin is quiet", idle.ShouldNotify, false);

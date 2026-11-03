@@ -6,6 +6,7 @@ namespace StockNotice
     {
         private const decimal LevelStep = 1.0m;
         private const decimal ComparisonEpsilon = 0.000001m;
+        private const int MaxNotificationsPerLevel = 3;
 
         public RuleEvaluation Evaluate(StockConfig stock, Quote quote, StockRuntimeState runtime, DateTime chinaNow, bool startupEvaluation)
         {
@@ -106,10 +107,18 @@ namespace StockNotice
                 shouldNotify = true;
                 reason = "threshold";
             }
-            else if (levelIndex > state.LevelCursor && state.NotificationCount < 3)
+            else if (levelIndex > state.LevelCursor)
             {
-                shouldNotify = true;
-                reason = "level";
+                // Entering a new 1% level refreshes the burst allowance, so a
+                // stock that keeps climbing keeps notifying instead of going
+                // silent after three pushes. Within one level the allowance
+                // stays at three.
+                int allowance = MaxNotificationsPerLevel * (state.LevelCursor + 2);
+                if (state.NotificationCount < allowance)
+                {
+                    shouldNotify = true;
+                    reason = "level";
+                }
             }
 
             if (startupEvaluation && !state.StartupNotifiedThisRun)
@@ -123,7 +132,7 @@ namespace StockNotice
                 state.StartupNotifiedThisRun = true;
                 state.Armed = false;
                 if (levelIndex > state.LevelCursor) state.LevelCursor = levelIndex;
-                if (state.NotificationCount < 3) state.NotificationCount++;
+                state.NotificationCount++;
                 state.LastNotifiedAt = chinaNow;
                 state.LastNotifiedPercent = result.ChangePercent;
 
