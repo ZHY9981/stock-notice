@@ -636,13 +636,13 @@ namespace StockNotice
         private Control BuildStockGrid()
         {
             _stockGrid = CreateGrid();
-            AddGridColumn(_stockGrid, "name", "股票", 255F, false);
-            AddGridColumn(_stockGrid, "price", "最新价", 90F, true);
-            AddGridColumn(_stockGrid, "change", "涨跌幅", 90F, true);
+            AddGridColumn(_stockGrid, "name", "股票", 235F, false);
+            AddGridColumn(_stockGrid, "price", "最新价", 88F, true);
+            AddGridColumn(_stockGrid, "change", "涨跌幅", 88F, true);
+            AddGridColumn(_stockGrid, "open", "开盘价", 86F, true);
             AddGridColumn(_stockGrid, "base", "昨收", 86F, true);
-            AddGridColumn(_stockGrid, "threshold", "阈值", 130F, true);
-            AddGridColumn(_stockGrid, "state", "状态", 145F, false);
-            AddGridColumn(_stockGrid, "time", "更新", 86F, true);
+            AddGridColumn(_stockGrid, "state", "状态", 150F, false);
+            AddGridColumn(_stockGrid, "time", "更新", 84F, true);
 
             _stockGrid.CellDoubleClick += StockGrid_CellDoubleClick;
             _stockGrid.CellFormatting += StockGrid_CellFormatting;
@@ -1110,9 +1110,8 @@ namespace StockNotice
                     BuildStockName(stock),
                     quote == null || !quote.IsValid ? "--" : AppResources.FormatPrice(quote.Price),
                     quote == null || !quote.IsValid ? "--" : AppResources.FormatPercent(change),
+                    quote == null || quote.Open <= 0m ? "--" : AppResources.FormatPrice(quote.Open),
                     basePrice > 0m ? AppResources.FormatPrice(basePrice) : "--",
-                    "+" + stock.UpThreshold.ToString("0.00") + "% / -"
-                        + stock.DownThreshold.ToString("0.00") + "%",
                     BuildRuntimeStatus(stock, quote, change, runtime),
                     quote == null ? "--" : AppResources.FormatTime(quote.Timestamp));
 
