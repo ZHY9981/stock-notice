@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #e9edf3;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+    color: #18202C;
+    padding: 28px 36px 40px;
+  }
+  .caption { font-size: 15px; font-weight: 700; color: #334155; margin: 0 0 10px 4px; }
+  .caption span { font-weight: 400; color: #64748b; margin-left: 8px; font-size: 13px; }
+  .frame { margin-bottom: 34px; }
+  .window {
+    width: 1200px; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, .18), 0 2px 6px rgba(15, 23, 42, .10);
+    background: #F5F7FA;
+  }
+  .titlebar {
+    height: 92px; background: #111827; display: flex; align-items: center;
+    padding: 0 28px; gap: 16px;
+  }
+  .logo {
+    width: 48px; height: 48px; border-radius: 12px; background: #1E293B;
+    border: 1px solid #2B3A55; display: flex; align-items: center; justify-content: center;
+    color: #93B4FF; font-weight: 800; font-size: 20px;
+  }
+  .titleblock h1 { color: #fff; font-size: 24px; font-weight: 700; letter-spacing: .5px; }
+  .titleblock p { color: #8C9AB3; font-size: 14px; margin-top: 5px; }
+  .close { margin-left: auto; color: #8C9AB3; font-size: 22px; }
+  .body { padding: 26px 28px 8px; }
+  .card {
+    background: #fff; border: 1px solid #E3E8EF; border-radius: 8px;
+    padding: 20px 22px; margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 14px; color: #475467; font-weight: 700; letter-spacing: .4px;
+    margin-bottom: 14px;
+  }
+  .row { display: flex; align-items: center; min-height: 40px; border-top: 1px solid #F1F4F8; }
+  .row:first-of-type { border-top: 0; }
+  .row label { width: 150px; color: #344054; font-size: 14px; }
+  .row .hint { color: #98A2B3; font-size: 13px; }
+  .value { color: #344054; font-size: 14px; font-weight: 600; }
+  .input {
+    width: 118px; height: 34px; border: 1px solid #D5DCE6; border-radius: 6px;
+    background: #F8FAFC; padding: 0 10px; font-size: 14px; color: #18202C;
+  }
+  .input.small { width: 80px; }
+  .check { width: 16px; height: 16px; border: 1.5px solid #94A3B8; border-radius: 4px; display: inline-block; position: relative; margin-right: 10px; }
+  .check.on { background: #3B6FF5; border-color: #3B6FF5; }
+  .check.on::after { content: "✓"; color: #fff; font-size: 12px; position: absolute; left: 2px; top: -2px; }
+  .checktext { display: flex; align-items: center; font-size: 14px; color: #344054; }
+  .path { color: #667085; font-size: 12px; font-family: Consolas, monospace; margin-top: 3px; }
+  .footer {
+    display: flex; align-items: center; padding: 14px 28px 22px; gap: 12px;
+  }
+  .link { color: #3B6FF5; font-size: 14px; margin-right: auto; }
+  .btn {
+    height: 38px; padding: 0 22px; border-radius: 6px; font-size: 14px;
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 600;
+  }
+  .btn.ghost { background: #fff; border: 1px solid #D5DCE6; color: #344054; }
+  .btn.primary { background: #3B6FF5; color: #fff; }
+
+  /* ---- variant B ---- */
+  .b-body { display: flex; gap: 0; padding: 0; }
+  .b-rail { width: 300px; background: #FAFBFD; border-right: 1px solid #E3E8EF; padding: 24px 22px; }
+  .b-rail h3 { font-size: 13px; color: #64748B; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px; }
+  .b-rail p { font-size: 13px; color: #475467; line-height: 1.7; }
+  .b-rail .meta { margin-top: 22px; padding-top: 16px; border-top: 1px solid #E9EEF5; }
+  .b-main { flex: 1; padding: 24px 28px 10px; background: #F5F7FA; }
+  .b-grid { display: flex; gap: 26px; }
+  .b-col { flex: 1; background: #fff; border: 1px solid #E3E8EF; border-radius: 8px; padding: 18px 20px; }
+  .b-col h2 { font-size: 14px; color: #475467; margin-bottom: 12px; }
+  .b-row { display: flex; align-items: center; justify-content: space-between; min-height: 42px; border-top: 1px solid #F1F4F8; }
+  .b-row:first-of-type { border-top: 0; }
+  .b-row span { font-size: 14px; color: #344054; }
+  .b-row .right { display: flex; align-items: center; gap: 8px; }
+  .to { color: #98A2B3; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="caption">方案 A · 单列卡片<span>沿用主窗口的深色顶栏，设置按用途分成三张卡片，改动最小、和现有实现最接近</span></div>
+  <div class="window">
+    <div class="titlebar">
+      <div class="logo">A</div>
+      <div class="titleblock">
+        <h1>运行设置</h1>
+        <p>程序常驻托盘，关闭主窗口后仍会继续监控</p>
+      </div>
+      <div class="close">✕</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <h2>行情与提醒</h2>
+        <div class="row"><label>行情检查间隔</label><span class="hint">5 秒（第一版固定）</span></div>
+        <div class="row"><label>同股提醒间隔</label><input class="input" value="120"><span class="hint" style="margin-left:10px">秒</span></div>
+        <div class="row"><label>行情有效期</label><input class="input" value="30"><span class="hint" style="margin-left:10px">秒</span></div>
+        <div class="row"><span class="checktext"><span class="check on"></span>触发时播放提示音</span></div>
+      </div>
+      <div class="card">
+        <h2>免打扰</h2>
+        <div class="row"><span class="checktext"><span class="check"></span>启用免打扰</span></div>
+        <div class="row"><label>时段</label>
+          <input class="input" value="22:00"><span class="to" style="margin:0 8px">至</span><input class="input" value="08:00">
+        </div>
+      </div>
+      <div class="card">
+        <h2>启动与数据</h2>
+        <div class="row"><span class="checktext"><span class="check"></span>登录 Windows 后自动启动</span></div>
+        <div class="row" style="align-items:flex-start;padding-top:10px">
+          <label style="width:70px">数据</label>
+          <div class="path">D:\codex work\stock-notice\build\data\state.json</div>
+        </div>
+        <div class="row" style="align-items:flex-start;padding-top:6px">
+          <label style="width:70px">日志</label>
+          <div class="path">D:\codex work\stock-notice\build\logs\</div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <div class="link">发送测试通知</div>
+      <div class="btn ghost">取消</div>
+      <div class="btn primary">保存</div>
+    </div>
+  </div>
+</div>
+
+<div class="frame">
+  <div class="caption">方案 B · 左侧说明 + 右侧双栏<span>把「设置项」和「数据位置/说明」分开，窗口更矮更宽，适合以后继续加选项</span></div>
+  <div class="window" style="width:1200px">
+    <div class="titlebar" style="height:84px">
+      <div class="logo">A</div>
+      <div class="titleblock"><h1>设置</h1><p>修改后立即生效，无需重启程序</p></div>
+      <div class="close">✕</div>
+    </div>
+    <div class="b-body">
+      <div class="b-rail">
+        <h3>说明</h3>
+        <p>行情按 AKShare、东方财富、腾讯行情顺序自动降级。免打扰和冷却只会抑制弹窗与声音，触发记录仍会保留。</p>
+        <div class="meta">
+          <h3>数据位置</h3>
+          <p class="path">build\data\state.json</p>
+          <p class="path" style="margin-top:6px">build\logs\</p>
+        </div>
+      </div>
+      <div class="b-main">
+        <div class="b-grid">
+          <div class="b-col">
+            <h2>提醒</h2>
+            <div class="b-row"><span>行情检查间隔</span><span class="hint" style="color:#98A2B3">5 秒</span></div>
+            <div class="b-row"><span>同股提醒间隔</span><span class="right"><input class="input small" value="120"><span class="hint" style="color:#98A2B3">秒</span></span></div>
+            <div class="b-row"><span>行情有效期</span><span class="right"><input class="input small" value="30"><span class="hint" style="color:#98A2B3">秒</span></span></div>
+            <div class="b-row"><span>提示音</span><span class="check on"></span></div>
+          </div>
+          <div class="b-col">
+            <h2>免打扰与启动</h2>
+            <div class="b-row"><span>免打扰</span><span class="check"></span></div>
+            <div class="b-row"><span>时段</span><span class="right"><input class="input small" value="22:00"><span class="to">至</span><input class="input small" value="08:00"></span></div>
+            <div class="b-row"><span>开机自启</span><span class="check"></span></div>
+            <div class="b-row"><span>发送测试通知</span><span style="color:#3B6FF5;font-size:13px">发送</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footer" style="background:#fff;border-top:1px solid #E3E8EF;padding:14px 24px">
+      <div class="link" style="color:#98A2B3">设置保存在 state.json</div>
+      <div class="btn ghost">取消</div>
+      <div class="btn primary">保存</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -34,7 +34,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1
 - `AkShareQuoteParser.cs`：AKShare 个股报价协议解析。
 - `AppLogger.cs`：运行日志和日志目录回退。
 - `StartupCheck.cs`：启动自检。
-- `UiControls.cs`：通用视觉控件和本地图标绘制。
+- `UiControls.cs`：通用视觉控件、本地图标绘制，以及对话框共用的 `DialogUi`。
 - `JsonStateStore.cs`：`state.json` 持久化和容错。
 - `AppResources.cs`：颜色、主题和高 DPI 尺寸。
 
@@ -76,6 +76,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1
 - 修复复杂问题时先建立可重复的失败检查，再做最小修复。
 - 新行为先补行为测试，避免测试私有实现细节。
 - 网络接口测试与离线测试分开，CI 只运行稳定的离线测试。
+- 对话框布局改动后用 `tools\DialogPreview.cs` 单独渲染截图验收：
+  `csc /main:DialogPreview ... src\*.cs tools\DialogPreview.cs`，产物不进 `build.ps1`。
 - 避免为当前不需要的扩展提前增加抽象。
 - 未经用户明确要求，不提交 Git commit，不执行推送或重写历史。
 

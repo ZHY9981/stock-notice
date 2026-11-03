@@ -31,7 +31,7 @@ namespace StockNotice
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = AppResources.SS(600, 570);
+            ClientSize = AppResources.SS(620, 660);
             BackColor = AppResources.Surface;
             Font = AppResources.Font(9F, FontStyle.Regular);
 
@@ -40,104 +40,71 @@ namespace StockNotice
 
         private void BuildInterface()
         {
-            // Same two-row root panel as the stock editor: without it the
-            // Fill-docked settings table slides under the header and its first
-            // row gets covered.
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 1;
-            root.RowCount = 2;
+            root.RowCount = 3;
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(70F)));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(62F)));
             Controls.Add(root);
 
-            Panel header = new Panel();
-            header.Dock = DockStyle.Fill;
-            header.BackColor = AppResources.Header;
-            root.Controls.Add(header, 0, 0);
+            root.Controls.Add(DialogUi.CreateHeader(
+                "运行设置",
+                "程序常驻托盘，关闭主窗口后仍会继续监控"), 0, 0);
 
-            Label title = new Label();
-            title.Text = "运行设置";
-            title.ForeColor = AppResources.HeaderText;
-            title.Font = AppResources.Font(15F, FontStyle.Bold);
-            title.AutoSize = true;
-            title.Location = AppResources.SP(24, 12);
-            header.Controls.Add(title);
+            TableLayoutPanel content = new TableLayoutPanel();
+            content.Dock = DockStyle.Fill;
+            content.BackColor = AppResources.Background;
+            content.ColumnCount = 1;
+            content.RowCount = 4;
+            content.Padding = AppResources.SPad(22, 16, 22, 6);
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(194F)));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(130F)));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(156F)));
+            content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            root.Controls.Add(content, 0, 1);
 
-            Label subtitle = new Label();
-            subtitle.Text = "程序常驻托盘，关闭主窗口后仍会继续监控";
-            subtitle.ForeColor = AppResources.HeaderMuted;
-            subtitle.Font = AppResources.Font(8.5F, FontStyle.Regular);
-            subtitle.AutoSize = true;
-            subtitle.Location = AppResources.SP(25, 44);
-            header.Controls.Add(subtitle);
+            TableLayoutPanel body;
 
-            TableLayoutPanel form = new TableLayoutPanel();
-            form.Dock = DockStyle.Fill;
-            form.Padding = AppResources.SPad(24, 20, 24, 18);
-            form.ColumnCount = 4;
-            form.RowCount = 10;
-            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(150F)));
-            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(120F)));
-            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(100F)));
-            form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(52F)));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
-            form.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            form.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(46F)));
-            root.Controls.Add(form, 0, 1);
-
-            AddCaption(form, "行情检查间隔", 0);
+            RoundedPanel quoteCard = DialogUi.CreateCard("行情与提醒", 194, out body);
             Label interval = new Label();
-            interval.Text = "5 秒（第一版固定）";
-            interval.ForeColor = AppResources.Text;
-            interval.TextAlign = ContentAlignment.MiddleLeft;
-            interval.Dock = DockStyle.Fill;
-            form.Controls.Add(interval, 1, 0);
-            form.SetColumnSpan(interval, 3);
+            interval.Text = "5 秒（固定）";
+            interval.ForeColor = AppResources.Muted;
+            interval.Font = AppResources.Font(9F, FontStyle.Regular);
+            interval.AutoSize = true;
+            DialogUi.AddRow(body, "行情检查间隔", interval);
 
-            AddCaption(form, "同股提醒间隔", 1);
             _cooldownSeconds = CreateSecondsInput(0, 3600, _state.Settings.AlertCooldownSeconds);
-            form.Controls.Add(_cooldownSeconds, 1, 1);
-            Label cooldownHint = CreateHintLabel("秒，同一方向触发后需等待");
-            form.Controls.Add(cooldownHint, 2, 1);
-            form.SetColumnSpan(cooldownHint, 2);
+            DialogUi.AddRow(body, "同股提醒间隔", WithUnit(_cooldownSeconds));
 
-            AddCaption(form, "行情新鲜度", 2);
             _staleSeconds = CreateSecondsInput(5, 300, _state.Settings.StaleQuoteSeconds);
-            form.Controls.Add(_staleSeconds, 1, 2);
-            Label staleHint = CreateHintLabel("秒，超过后不参与提醒");
-            form.Controls.Add(staleHint, 2, 2);
-            form.SetColumnSpan(staleHint, 2);
+            DialogUi.AddRow(body, "行情有效期", WithUnit(_staleSeconds));
 
-            AddCaption(form, "通知声音", 3);
             _soundCheckBox = new CheckBox();
             _soundCheckBox.Text = "触发时播放提示音";
             _soundCheckBox.Checked = _state.Settings.SoundEnabled;
             _soundCheckBox.AutoSize = true;
             _soundCheckBox.ForeColor = AppResources.Text;
-            form.Controls.Add(_soundCheckBox, 1, 3);
-            form.SetColumnSpan(_soundCheckBox, 3);
+            _soundCheckBox.BackColor = AppResources.Surface;
+            DialogUi.AddSpanRow(body, _soundCheckBox, 38f);
+            content.Controls.Add(quoteCard, 0, 0);
 
-            AddCaption(form, "免打扰时段", 4);
+            RoundedPanel quietCard = DialogUi.CreateCard("免打扰", 130, out body);
             _quietHoursCheckBox = new CheckBox();
-            _quietHoursCheckBox.Text = "启用";
+            _quietHoursCheckBox.Text = "启用免打扰";
             _quietHoursCheckBox.Checked = _state.Settings.QuietHoursEnabled;
             _quietHoursCheckBox.AutoSize = true;
             _quietHoursCheckBox.ForeColor = AppResources.Text;
+            _quietHoursCheckBox.BackColor = AppResources.Surface;
             _quietHoursCheckBox.CheckedChanged += delegate { UpdateQuietEditors(); };
-            form.Controls.Add(_quietHoursCheckBox, 1, 4);
+            DialogUi.AddSpanRow(body, _quietHoursCheckBox, 44f);
 
             FlowLayoutPanel quietEditors = new FlowLayoutPanel();
             quietEditors.Dock = DockStyle.Fill;
             quietEditors.FlowDirection = FlowDirection.LeftToRight;
             quietEditors.WrapContents = false;
+            quietEditors.BackColor = AppResources.Surface;
 
             _quietStartPicker = CreateTimePicker(_state.Settings.QuietHoursStart);
             quietEditors.Controls.Add(_quietStartPicker);
@@ -146,91 +113,72 @@ namespace StockNotice
             separator.Text = "至";
             separator.ForeColor = AppResources.Muted;
             separator.TextAlign = ContentAlignment.MiddleCenter;
-            separator.Width = AppResources.S(28);
+            separator.Width = AppResources.S(30);
             quietEditors.Controls.Add(separator);
 
             _quietEndPicker = CreateTimePicker(_state.Settings.QuietHoursEnd);
             quietEditors.Controls.Add(_quietEndPicker);
-            form.Controls.Add(quietEditors, 2, 4);
-            form.SetColumnSpan(quietEditors, 2);
+            DialogUi.AddRow(body, "时段", quietEditors, true, 44f);
+            content.Controls.Add(quietCard, 0, 1);
 
-            AddCaption(form, "开机启动", 5);
+            RoundedPanel startupCard = DialogUi.CreateCard("启动与数据", 156, out body);
             _startupCheckBox = new CheckBox();
             _startupCheckBox.Text = "登录 Windows 后自动启动";
             _startupCheckBox.Checked = RegistryHelper.IsStartupEnabled();
             _startupCheckBox.AutoSize = true;
             _startupCheckBox.ForeColor = AppResources.Text;
-            form.Controls.Add(_startupCheckBox, 1, 5);
-            form.SetColumnSpan(_startupCheckBox, 3);
+            _startupCheckBox.BackColor = AppResources.Surface;
+            DialogUi.AddSpanRow(body, _startupCheckBox, 38f);
+            DialogUi.AddRow(body, "数据位置", CreatePathBox(_store.StatePath), true, 38f);
+            DialogUi.AddRow(body, "日志位置", CreatePathBox(AppLogger.LogPath), true, 38f);
+            content.Controls.Add(startupCard, 0, 2);
 
-            AddCaption(form, "数据位置", 6);
-            TextBox dataPath = new TextBox();
-            dataPath.Text = _store.StatePath;
-            dataPath.ReadOnly = true;
-            dataPath.Dock = DockStyle.Fill;
-            dataPath.BorderStyle = BorderStyle.FixedSingle;
-            dataPath.BackColor = AppResources.FieldBackground;
-            dataPath.ForeColor = AppResources.Text;
-            form.Controls.Add(dataPath, 1, 6);
-            form.SetColumnSpan(dataPath, 3);
-
-            AddCaption(form, "日志位置", 7);
-            TextBox logPath = new TextBox();
-            logPath.Text = AppLogger.LogPath;
-            logPath.ReadOnly = true;
-            logPath.Dock = DockStyle.Fill;
-            logPath.BorderStyle = BorderStyle.FixedSingle;
-            logPath.BackColor = AppResources.FieldBackground;
-            logPath.ForeColor = AppResources.Text;
-            form.Controls.Add(logPath, 1, 7);
-            form.SetColumnSpan(logPath, 3);
-
-            Label note = new Label();
-            note.Text = "行情按 AKShare 个股报价协议获取，并按 AKShare、东方财富、腾讯行情顺序自动降级。免打扰和冷却只会抑制弹窗与声音，触发记录仍会保留。";
-            note.ForeColor = AppResources.Muted;
-            note.Font = AppResources.Font(8.5F, FontStyle.Regular);
-            note.AutoSize = false;
-            note.Dock = DockStyle.Fill;
-            note.Padding = AppResources.SPad(0, 10, 0, 0);
-            form.Controls.Add(note, 0, 8);
-            form.SetColumnSpan(note, 4);
-
-            FlowLayoutPanel buttons = new FlowLayoutPanel();
-            buttons.Dock = DockStyle.Fill;
-            buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.WrapContents = false;
-
-            Button save = CreatePrimaryButton("保存");
-            save.Click += SaveButton_Click;
-            buttons.Controls.Add(save);
-
-            Button cancel = CreateSecondaryButton("取消");
-            cancel.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
-            buttons.Controls.Add(cancel);
-
-            Button test = CreateSecondaryButton("测试通知");
+            Button test = DialogUi.CreateLinkButton("发送测试通知");
             test.Click += delegate
             {
                 if (_testNotification != null) _testNotification();
             };
-            buttons.Controls.Add(test);
+            Button save = DialogUi.CreatePrimaryButton("保存", 88);
+            save.Click += SaveButton_Click;
+            Button cancel = DialogUi.CreateSecondaryButton("取消", 88);
+            cancel.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
+            root.Controls.Add(DialogUi.CreateFooter(test, save, cancel), 0, 2);
 
-            form.Controls.Add(buttons, 0, 9);
-            form.SetColumnSpan(buttons, 4);
             AcceptButton = save;
             CancelButton = cancel;
             UpdateQuietEditors();
         }
 
-        private static void AddCaption(TableLayoutPanel form, string text, int row)
+        private static Control WithUnit(Control input)
         {
-            Label label = new Label();
-            label.Text = text;
-            label.ForeColor = AppResources.Text;
-            label.Font = AppResources.Font(9F, FontStyle.Bold);
-            label.TextAlign = ContentAlignment.MiddleLeft;
-            label.Dock = DockStyle.Fill;
-            form.Controls.Add(label, 0, row);
+            FlowLayoutPanel row = new FlowLayoutPanel();
+            row.Dock = DockStyle.Fill;
+            row.FlowDirection = FlowDirection.LeftToRight;
+            row.WrapContents = false;
+            row.BackColor = AppResources.Surface;
+            input.Width = AppResources.S(96);
+            row.Controls.Add(input);
+
+            Label unit = new Label();
+            unit.Text = "秒";
+            unit.ForeColor = AppResources.Muted;
+            unit.Font = AppResources.Font(9F, FontStyle.Regular);
+            unit.AutoSize = true;
+            unit.Margin = AppResources.SPad(8, 6, 0, 0);
+            row.Controls.Add(unit);
+            return row;
+        }
+
+        private static TextBox CreatePathBox(string text)
+        {
+            TextBox box = new TextBox();
+            box.Text = text;
+            box.ReadOnly = true;
+            box.BorderStyle = BorderStyle.FixedSingle;
+            box.BackColor = AppResources.FieldBackground;
+            box.ForeColor = AppResources.Muted;
+            box.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            return box;
         }
 
         private static NumericUpDown CreateSecondsInput(int minimum, int maximum, int value)
@@ -243,17 +191,6 @@ namespace StockNotice
             input.Dock = DockStyle.Fill;
             input.Font = AppResources.Font(10F, FontStyle.Regular);
             return input;
-        }
-
-        private static Label CreateHintLabel(string text)
-        {
-            Label label = new Label();
-            label.Text = text;
-            label.ForeColor = AppResources.Muted;
-            label.Font = AppResources.Font(8F, FontStyle.Regular);
-            label.TextAlign = ContentAlignment.MiddleLeft;
-            label.Dock = DockStyle.Fill;
-            return label;
         }
 
         private static DateTimePicker CreateTimePicker(string value)
@@ -276,40 +213,6 @@ namespace StockNotice
             bool enabled = _quietHoursCheckBox != null && _quietHoursCheckBox.Checked;
             if (_quietStartPicker != null) _quietStartPicker.Enabled = enabled;
             if (_quietEndPicker != null) _quietEndPicker.Enabled = enabled;
-        }
-
-        private static Button CreatePrimaryButton(string text)
-        {
-            Button button = new Button();
-            button.Text = text;
-            button.Width = AppResources.S(92);
-            button.Height = AppResources.S(38);
-            button.Margin = AppResources.SPad(8, 0, 0, 0);
-            button.FlatStyle = FlatStyle.Flat;
-            button.FlatAppearance.BorderSize = 0;
-            button.BackColor = AppResources.Accent;
-            button.ForeColor = AppResources.OnAccent;
-            button.Font = AppResources.Font(9F, FontStyle.Bold);
-            button.Cursor = Cursors.Hand;
-            button.UseVisualStyleBackColor = false;
-            return button;
-        }
-
-        private static Button CreateSecondaryButton(string text)
-        {
-            Button button = new Button();
-            button.Text = text;
-            button.Width = AppResources.S(102);
-            button.Height = AppResources.S(38);
-            button.Margin = AppResources.SPad(8, 0, 0, 0);
-            button.FlatStyle = FlatStyle.Flat;
-            button.FlatAppearance.BorderColor = AppResources.ButtonBorder;
-            button.BackColor = AppResources.Surface;
-            button.ForeColor = AppResources.Text;
-            button.Font = AppResources.Font(9F, FontStyle.Bold);
-            button.Cursor = Cursors.Hand;
-            button.UseVisualStyleBackColor = false;
-            return button;
         }
 
         private void SaveButton_Click(object sender, EventArgs e)

@@ -383,4 +383,206 @@ namespace StockNotice
             DoubleBuffered = true;
         }
     }
+
+    // Shared chrome for the two dialogs so the settings window and the stock
+    // editor feel like part of the same program as the main window.
+    public static class DialogUi
+    {
+        public static Control CreateHeader(string title, string subtitle)
+        {
+            Panel header = new Panel();
+            header.Dock = DockStyle.Fill;
+            header.BackColor = AppResources.Header;
+
+            Label titleLabel = new Label();
+            titleLabel.Text = title;
+            titleLabel.ForeColor = AppResources.HeaderText;
+            titleLabel.Font = AppResources.Font(15F, FontStyle.Bold);
+            titleLabel.AutoSize = true;
+            titleLabel.Location = AppResources.SP(24, 12);
+            header.Controls.Add(titleLabel);
+
+            Label subtitleLabel = new Label();
+            subtitleLabel.Text = subtitle;
+            subtitleLabel.ForeColor = AppResources.HeaderMuted;
+            subtitleLabel.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            subtitleLabel.AutoSize = true;
+            subtitleLabel.Location = AppResources.SP(25, 44);
+            header.Controls.Add(subtitleLabel);
+            return header;
+        }
+
+        public static RoundedPanel CreateCard(string sectionTitle, int height, out TableLayoutPanel body)
+        {
+            RoundedPanel card = new RoundedPanel();
+            card.Dock = DockStyle.Fill;
+            card.Height = AppResources.S(height);
+            card.BackColor = AppResources.Surface;
+            card.BorderColor = AppResources.Border;
+            card.CornerRadius = AppResources.S(6);
+            card.Margin = AppResources.SPad(0, 0, 0, 10);
+
+            TableLayoutPanel inner = new TableLayoutPanel();
+            inner.Dock = DockStyle.Fill;
+            inner.BackColor = AppResources.Surface;
+            inner.ColumnCount = 1;
+            inner.RowCount = 2;
+            inner.Padding = AppResources.SPad(18, 8, 18, 8);
+            inner.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(26F)));
+            inner.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            card.Controls.Add(inner);
+
+            Label caption = new Label();
+            caption.Text = sectionTitle;
+            caption.ForeColor = AppResources.Muted;
+            caption.Font = AppResources.Font(8.5F, FontStyle.Bold);
+            caption.TextAlign = ContentAlignment.MiddleLeft;
+            caption.Dock = DockStyle.Fill;
+            inner.Controls.Add(caption, 0, 0);
+
+            body = new TableLayoutPanel();
+            body.Dock = DockStyle.Fill;
+            body.BackColor = AppResources.Surface;
+            body.ColumnCount = 2;
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(124F)));
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            inner.Controls.Add(body, 0, 1);
+            return card;
+        }
+
+        public static void AddRow(TableLayoutPanel body, string caption, Control control)
+        {
+            AddRow(body, caption, control, false, 38f);
+        }
+
+        public static void AddRow(TableLayoutPanel body, string caption, Control control, bool fill)
+        {
+            AddRow(body, caption, control, fill, 38f);
+        }
+
+        public static void AddRow(TableLayoutPanel body, string caption, Control control, bool fill, float rowHeight)
+        {
+            int row = body.RowStyles.Count;
+            body.RowCount = row + 1;
+            body.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(rowHeight)));
+
+            Label label = new Label();
+            label.Text = caption;
+            label.ForeColor = AppResources.Text;
+            label.Font = AppResources.Font(9F, FontStyle.Regular);
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.Dock = DockStyle.Fill;
+            body.Controls.Add(label, 0, row);
+
+            if (fill)
+            {
+                control.Dock = DockStyle.Fill;
+                body.Controls.Add(control, 1, row);
+            }
+            else
+            {
+                control.Anchor = AnchorStyles.Left;
+                body.Controls.Add(control, 1, row);
+            }
+        }
+
+        public static void AddSpanRow(TableLayoutPanel body, Control control, float rowHeight)
+        {
+            int row = body.RowStyles.Count;
+            body.RowCount = row + 1;
+            body.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(rowHeight)));
+            control.Dock = DockStyle.Fill;
+            body.Controls.Add(control, 0, row);
+            body.SetColumnSpan(control, 2);
+        }
+
+        public static Button CreatePrimaryButton(string text, int width)
+        {
+            Button button = new Button();
+            button.Text = text;
+            button.Width = AppResources.S(width);
+            button.Height = AppResources.S(36);
+            button.Margin = AppResources.SPad(8, 0, 0, 0);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = AppResources.Accent;
+            button.ForeColor = AppResources.OnAccent;
+            button.Font = AppResources.Font(9F, FontStyle.Bold);
+            button.Cursor = Cursors.Hand;
+            button.UseVisualStyleBackColor = false;
+            return button;
+        }
+
+        public static Button CreateSecondaryButton(string text, int width)
+        {
+            Button button = new Button();
+            button.Text = text;
+            button.Width = AppResources.S(width);
+            button.Height = AppResources.S(36);
+            button.Margin = AppResources.SPad(8, 0, 0, 0);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 1;
+            button.FlatAppearance.BorderColor = AppResources.ButtonBorder;
+            button.BackColor = AppResources.Surface;
+            button.ForeColor = AppResources.Text;
+            button.Font = AppResources.Font(9F, FontStyle.Bold);
+            button.Cursor = Cursors.Hand;
+            button.UseVisualStyleBackColor = false;
+            return button;
+        }
+
+        public static Button CreateLinkButton(string text)
+        {
+            Button button = new Button();
+            button.Text = text;
+            button.AutoSize = true;
+            button.Height = AppResources.S(30);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = AppResources.Surface;
+            button.ForeColor = AppResources.Accent;
+            button.Font = AppResources.Font(9F, FontStyle.Regular);
+            button.Cursor = Cursors.Hand;
+            button.UseVisualStyleBackColor = false;
+            return button;
+        }
+
+        public static Panel CreateFooter(Control leftContent, Button primary, Button secondary)
+        {
+            Panel footer = new Panel();
+            footer.Dock = DockStyle.Fill;
+            footer.BackColor = AppResources.Surface;
+            footer.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                using (Pen pen = new Pen(AppResources.Border))
+                {
+                    e.Graphics.DrawLine(pen, 0, 0, footer.Width, 0);
+                }
+            };
+
+            if (leftContent != null)
+            {
+                leftContent.Dock = DockStyle.Left;
+                Panel left = new Panel();
+                left.Dock = DockStyle.Left;
+                left.Width = AppResources.S(180);
+                left.Padding = AppResources.SPad(22, 12, 0, 0);
+                left.BackColor = AppResources.Surface;
+                left.Controls.Add(leftContent);
+                footer.Controls.Add(left);
+            }
+
+            FlowLayoutPanel right = new FlowLayoutPanel();
+            right.Dock = DockStyle.Right;
+            right.Width = AppResources.S(230);
+            right.FlowDirection = FlowDirection.RightToLeft;
+            right.WrapContents = false;
+            right.Padding = AppResources.SPad(0, 14, 20, 0);
+            right.BackColor = AppResources.Surface;
+            if (primary != null) right.Controls.Add(primary);
+            if (secondary != null) right.Controls.Add(secondary);
+            footer.Controls.Add(right);
+            return footer;
+        }
+    }
 }
