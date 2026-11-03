@@ -1283,7 +1283,7 @@ namespace StockNotice
                     AppResources.FormatPercent(item.ChangePercent),
                     AppResources.FormatPrice(item.Price),
                     level,
-                    item.NotificationNumber.ToString() + "/3",
+                    item.NotificationNumber.ToString() + " 次",
                     ReasonText(item));
             }
         }
@@ -1360,6 +1360,17 @@ namespace StockNotice
             int age = _monitor.DataAgeSeconds;
             if (_monitor.IsDataStale)
             {
+                DateTime now = MarketClock.Now();
+                if (!MarketClock.IsTradingSession(now))
+                {
+                    string session = MarketClock.GetSessionText(now);
+                    string closedText = session + " · " + AppResources.FormatTime(_monitor.LastFetchAt);
+                    _healthLabel.Text = closedText;
+                    _healthLabel.ForeColor = AppResources.Muted;
+                    SetHeaderHealth(closedText, true);
+                    return;
+                }
+
                 _healthLabel.Text = "数据陈旧 · " + age.ToString() + " 秒前";
                 _healthLabel.ForeColor = AppResources.Up;
                 SetHeaderHealth("数据陈旧 · " + age.ToString() + " 秒前", false);
@@ -1424,6 +1435,10 @@ namespace StockNotice
                 now,
                 TimeSpan.FromSeconds(_state.Settings.StaleQuoteSeconds)))
             {
+                if (!MarketClock.IsTradingSession(now))
+                {
+                    return MarketClock.GetSessionText(now);
+                }
                 int age = quote.Timestamp == DateTime.MinValue
                     ? -1
                     : Math.Max(0, (int)(now - quote.Timestamp).TotalSeconds);
@@ -1431,11 +1446,11 @@ namespace StockNotice
             }
             if (change > stock.UpThreshold)
             {
-                return "上涨已通知 " + runtime.Up.NotificationCount.ToString() + "/3";
+                return "上涨已通知 " + runtime.Up.NotificationCount.ToString() + " 次";
             }
             if (change < -stock.DownThreshold)
             {
-                return "下跌已通知 " + runtime.Down.NotificationCount.ToString() + "/3";
+                return "下跌已通知 " + runtime.Down.NotificationCount.ToString() + " 次";
             }
             return "监控中";
         }

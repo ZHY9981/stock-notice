@@ -23,7 +23,7 @@ namespace StockNotice
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = AppResources.SS(440, 400);
+            ClientSize = AppResources.SS(460, 340);
             BackColor = AppResources.Surface;
             Font = AppResources.Font(9F, FontStyle.Regular);
 
@@ -35,39 +35,38 @@ namespace StockNotice
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 1;
-            root.RowCount = 2;
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(66F)));
+            root.RowCount = 3;
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(74F)));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(62F)));
             Controls.Add(root);
 
-            Panel header = new Panel();
-            header.Dock = DockStyle.Fill;
-            header.BackColor = AppResources.Header;
+            root.Controls.Add(DialogUi.CreateHeader(
+                "匹配到多只股票",
+                "“" + keyword + "” 匹配到 " + candidates.Count.ToString() + " 只 A 股，选一个"), 0, 0);
 
-            Label title = new Label();
-            title.Text = "匹配到多只股票";
-            title.ForeColor = AppResources.HeaderText;
-            title.Font = AppResources.Font(14F, FontStyle.Bold);
-            title.AutoSize = true;
-            title.Location = AppResources.SP(24, 11);
-            header.Controls.Add(title);
+            TableLayoutPanel content = new TableLayoutPanel();
+            content.Dock = DockStyle.Fill;
+            content.BackColor = AppResources.Background;
+            content.ColumnCount = 1;
+            content.RowCount = 1;
+            content.Padding = AppResources.SPad(22, 16, 22, 6);
+            content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            root.Controls.Add(content, 0, 1);
 
-            Label subtitle = new Label();
-            subtitle.Text = "“" + keyword + "” 匹配到 " + candidates.Count + " 只 A 股，选一个";
-            subtitle.ForeColor = AppResources.HeaderMuted;
-            subtitle.Font = AppResources.Font(8.5F, FontStyle.Regular);
-            subtitle.AutoSize = true;
-            subtitle.Location = AppResources.SP(25, 40);
-            header.Controls.Add(subtitle);
-            root.Controls.Add(header, 0, 0);
+            TableLayoutPanel body;
+            RoundedPanel listCard = DialogUi.CreateCard("搜索结果", 250, out body);
 
             _list = new ListBox();
             _list.Dock = DockStyle.Fill;
             _list.Font = AppResources.Font(10F, FontStyle.Regular);
-            _list.BorderStyle = BorderStyle.FixedSingle;
+            _list.BorderStyle = BorderStyle.None;
             _list.BackColor = AppResources.Surface;
             _list.ForeColor = AppResources.Text;
             _list.IntegralHeight = false;
+            _list.ItemHeight = AppResources.S(28);
+            _list.DrawMode = DrawMode.OwnerDrawFixed;
+            _list.DrawItem += List_DrawItem;
             _list.DisplayMember = "DisplayText";
             for (int i = 0; i < candidates.Count; i++)
             {
@@ -75,35 +74,15 @@ namespace StockNotice
             }
             if (_list.Items.Count > 0) _list.SelectedIndex = 0;
             _list.DoubleClick += delegate { Accept(); };
+            DialogUi.AddSpanRow(body, _list, 190f);
+            body.RowStyles[0] = new RowStyle(SizeType.Percent, 100F);
+            content.Controls.Add(listCard, 0, 0);
 
-            Panel listHost = new Panel();
-            listHost.Dock = DockStyle.Fill;
-            listHost.Padding = AppResources.SPad(22, 14, 22, 8);
-            listHost.Controls.Add(_list);
-
-            FlowLayoutPanel buttons = new FlowLayoutPanel();
-            buttons.Dock = DockStyle.Fill;
-            buttons.FlowDirection = FlowDirection.RightToLeft;
-            buttons.WrapContents = false;
-            buttons.Padding = AppResources.SPad(0, 6, 22, 0);
-
-            Button ok = CreatePrimaryButton("确定");
+            Button ok = DialogUi.CreatePrimaryButton("确定", 88);
             ok.Click += delegate { Accept(); };
-            buttons.Controls.Add(ok);
-
-            Button cancel = CreateSecondaryButton("取消");
+            Button cancel = DialogUi.CreateSecondaryButton("取消", 88);
             cancel.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
-            buttons.Controls.Add(cancel);
-
-            TableLayoutPanel body = new TableLayoutPanel();
-            body.Dock = DockStyle.Fill;
-            body.ColumnCount = 1;
-            body.RowCount = 2;
-            body.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            body.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(56F)));
-            body.Controls.Add(listHost, 0, 0);
-            body.Controls.Add(buttons, 0, 1);
-            root.Controls.Add(body, 0, 1);
+            root.Controls.Add(DialogUi.CreateFooter(null, ok, cancel), 0, 2);
 
             AcceptButton = ok;
             CancelButton = cancel;
@@ -118,38 +97,32 @@ namespace StockNotice
             Close();
         }
 
-        private static Button CreatePrimaryButton(string text)
+        private void List_DrawItem(object sender, DrawItemEventArgs e)
         {
-            Button button = new Button();
-            button.Text = text;
-            button.Width = AppResources.S(92);
-            button.Height = AppResources.S(38);
-            button.Margin = AppResources.SPad(8, 0, 0, 0);
-            button.FlatStyle = FlatStyle.Flat;
-            button.FlatAppearance.BorderSize = 0;
-            button.BackColor = AppResources.Accent;
-            button.ForeColor = AppResources.OnAccent;
-            button.Font = AppResources.Font(9F, FontStyle.Bold);
-            button.Cursor = Cursors.Hand;
-            button.UseVisualStyleBackColor = false;
-            return button;
-        }
+            if (e.Index < 0 || e.Index >= _list.Items.Count) return;
 
-        private static Button CreateSecondaryButton(string text)
-        {
-            Button button = new Button();
-            button.Text = text;
-            button.Width = AppResources.S(82);
-            button.Height = AppResources.S(38);
-            button.Margin = AppResources.SPad(8, 0, 0, 0);
-            button.FlatStyle = FlatStyle.Flat;
-            button.FlatAppearance.BorderColor = AppResources.ButtonBorder;
-            button.BackColor = AppResources.Surface;
-            button.ForeColor = AppResources.Text;
-            button.Font = AppResources.Font(9F, FontStyle.Bold);
-            button.Cursor = Cursors.Hand;
-            button.UseVisualStyleBackColor = false;
-            return button;
+            bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            using (SolidBrush background = new SolidBrush(
+                selected ? AppResources.GridRowSelection : AppResources.Surface))
+            {
+                e.Graphics.FillRectangle(background, e.Bounds);
+            }
+
+            StockCandidate item = _list.Items[e.Index] as StockCandidate;
+            if (item == null) return;
+
+            Rectangle textBounds = new Rectangle(
+                e.Bounds.Left + AppResources.S(10),
+                e.Bounds.Top,
+                e.Bounds.Width - AppResources.S(10),
+                e.Bounds.Height);
+            TextRenderer.DrawText(
+                e.Graphics,
+                item.DisplayText,
+                _list.Font,
+                textBounds,
+                AppResources.Text,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
     }
 }

@@ -44,6 +44,25 @@ internal static class DialogPreview
         {
             Capture(editor, System.IO.Path.Combine(outputDirectory, "stock-edit-window.png"));
         }
+
+        System.Collections.Generic.List<StockCandidate> candidates =
+            new System.Collections.Generic.List<StockCandidate>();
+        candidates.Add(Candidate("600519", "贵州茅台", MarketNames.Shanghai));
+        candidates.Add(Candidate("600809", "山西汾酒", MarketNames.Shanghai));
+        candidates.Add(Candidate("000858", "五粮液", MarketNames.Shenzhen));
+        using (StockPickForm picker = new StockPickForm(candidates, "酒"))
+        {
+            Capture(picker, System.IO.Path.Combine(outputDirectory, "stock-pick-window.png"));
+        }
+    }
+
+    private static StockCandidate Candidate(string code, string name, string market)
+    {
+        StockCandidate candidate = new StockCandidate();
+        candidate.Code = code;
+        candidate.Name = name;
+        candidate.Market = market;
+        return candidate;
     }
 
     private static void Capture(Form form, string path)
