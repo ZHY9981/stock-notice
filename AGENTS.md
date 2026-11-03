@@ -19,6 +19,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1
 - `run-tests.ps1` 编译并运行规则状态机和行情字段解析测试。
 - `check-marketdata.ps1` 需要联网，不属于离线测试。
 - 只修改文档时不必构建；修改代码后必须构建并运行完整离线测试。
+- `build.ps1` 编译后会自动调用 `tools\sign-exe.ps1` 给 exe 签名，避免
+  SmartScreen 把未签名程序当成未知应用。证书由 `tools\make-signing-cert.ps1`
+  一次性创建（当前用户个人存储 + 受信任根）；换电脑需要重新运行一次。
 
 ## 核心模块
 

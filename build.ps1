@@ -121,3 +121,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ('Build succeeded: {0}' -f $output)
+
+# Sign the build so SmartScreen recognises the publisher instead of warning
+# about an unknown app. The certificate is created by tools\make-signing-cert.ps1.
+$signScript = Join-Path $root 'tools\sign-exe.ps1'
+if (Test-Path -LiteralPath $signScript) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $signScript -Path $output
+}
