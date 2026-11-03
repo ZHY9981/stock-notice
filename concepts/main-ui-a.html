@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #dfe5ee; font-family: "Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif; color: #18202C; }
+  .wrap { width: 1280px; height: 800px; background: #F5F7FA; display: flex; flex-direction: column; overflow: hidden; }
+  .titlebar { height: 30px; background: #f3f3f3; display: flex; align-items: center; padding: 0 10px; gap: 8px; color: #333; font-size: 12px; border-bottom: 1px solid #e2e2e2; }
+  .titlebar .dot { width: 14px; height: 14px; border-radius: 50%; background: #1f2937; color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; }
+  .titlebar .spacer { margin-left: auto; letter-spacing: 10px; color: #666; }
+
+  .header { background: #111827; color: #fff; display: flex; align-items: center; padding: 0 20px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 34px; height: 34px; border-radius: 9px; background: #1E293B; border: 1px solid #2B3A55; display: flex; align-items: center; justify-content: center; color: #93B4FF; font-weight: 800; font-size: 14px; }
+  .brand h1 { font-size: 17px; font-weight: 700; }
+  .brand p { font-size: 10px; color: #8C9AB3; margin-top: 2px; }
+  .chip { border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+  .chip.muted { background: #1F2937; color: #B9C2D0; border: 1px solid #334155; }
+  .chip.ok { background: #14352C; color: #7EF0B8; border: 1px solid #245B47; }
+  .chip.warn { background: #3A2327; color: #FF8E8E; border: 1px solid #5B333A; }
+  .spacer { flex: 1; }
+  .hbtn { border: 1px solid #3A4557; background: #182130; color: #E5E7EB; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 700; }
+  .hbtn.primary { background: #3B6FF5; border-color: #3B6FF5; color: #fff; }
+
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 20px; background: #F5F7FA; }
+  .btn { border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 600; border: 1px solid #D5DCE6; background: #fff; color: #344054; }
+  .btn.primary { background: #3B6FF5; color: #fff; border-color: #3B6FF5; }
+  .hint { margin-left: auto; color: #98A2B3; font-size: 11px; }
+
+  .card { background: #fff; border: 1px solid #E3E8EF; border-radius: 8px; }
+
+  .up { color: #D33A3A; } .down { color: #078552; } .muted { color: #98A2B3; } .mid { color: #475467; }
+
+  /* ---------- A: compact terminal ---------- */
+  .a-header { height: 64px; }
+  .a-metrics { display: flex; gap: 26px; margin-left: 28px; }
+  .a-metric b { display: block; font-size: 16px; }
+  .a-metric span { font-size: 10px; color: #8C9AB3; }
+  .a-body { flex: 1; display: flex; gap: 12px; padding: 12px 20px 0; min-height: 0; }
+  .a-left { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .a-table { overflow: hidden; }
+  .a-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .a-table th { text-align: left; font-size: 11px; color: #98A2B3; font-weight: 600; padding: 8px 12px; background: #F8FAFC; border-bottom: 1px solid #E3E8EF; }
+  .a-table td { padding: 9px 12px; border-bottom: 1px solid #F1F4F8; }
+  .a-table tr.sel td { background: #EAF0FF; }
+  .a-log { flex: 1; overflow: hidden; }
+  .a-log h3 { font-size: 12px; color: #475467; padding: 10px 14px 6px; }
+  .logrow { display: flex; gap: 10px; align-items: center; padding: 7px 14px; border-top: 1px solid #F1F4F8; font-size: 12px; }
+  .a-detail { width: 380px; display: flex; flex-direction: column; gap: 10px; }
+  .d-head { padding: 14px 16px 8px; }
+  .d-name { font-size: 20px; font-weight: 800; }
+  .d-code { font-size: 11px; color: #98A2B3; margin-top: 2px; }
+  .d-price { font-size: 34px; font-weight: 800; margin-top: 6px; }
+  .d-chg { font-size: 12px; font-weight: 700; margin-top: 2px; }
+  .d-chart { height: 130px; background: #F8FAFC; border: 1px solid #EEF2F7; border-radius: 6px; margin: 8px 16px; position: relative; }
+  .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; padding: 4px 16px 0; font-size: 12px; }
+  .d-grid b { font-size: 13px; }
+  .d-actions { margin-top: auto; padding: 12px 16px; display: flex; gap: 8px; }
+
+  /* ---------- B: dashboard ---------- */
+  .b-header { height: 128px; align-items: center; }
+  .b-hero { display: flex; align-items: center; gap: 34px; width: 100%; }
+  .b-big { font-size: 30px; font-weight: 800; line-height: 1.1; }
+  .b-sub { font-size: 12px; color: #8C9AB3; margin-top: 6px; }
+  .b-stat { text-align: left; }
+  .b-stat b { display: block; font-size: 22px; }
+  .b-stat span { font-size: 10px; color: #8C9AB3; }
+  .b-body { flex: 1; display: flex; gap: 12px; padding: 14px 20px 0; min-height: 0; }
+  .b-list { flex: 1; overflow: hidden; }
+  .b-list table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .b-list th { text-align: left; font-size: 11px; color: #98A2B3; padding: 9px 14px; background: #F8FAFC; border-bottom: 1px solid #E3E8EF; }
+  .b-list td { padding: 11px 14px; border-bottom: 1px solid #F1F4F8; }
+  .b-side { width: 400px; display: flex; flex-direction: column; gap: 12px; }
+  .gauge { margin: 10px 16px; }
+  .gauge .row { display: flex; justify-content: space-between; font-size: 11px; color: #667085; margin-bottom: 4px; }
+  .bar { height: 8px; border-radius: 5px; background: #EEF2F7; position: relative; overflow: hidden; }
+  .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; }
+
+  /* ---------- C: detail first ---------- */
+  .c-body { flex: 1; display: flex; padding: 12px 20px 0; gap: 12px; min-height: 0; }
+  .c-rail { width: 250px; overflow: hidden; }
+  .railrow { display: flex; justify-content: space-between; align-items: center; padding: 12px 12px; border-bottom: 1px solid #F1F4F8; }
+  .railrow.sel { background: #EAF0FF; border-left: 3px solid #3B6FF5; padding-left: 9px; }
+  .railrow .n { font-size: 12.5px; font-weight: 600; }
+  .railrow .c { font-size: 10px; color: #98A2B3; margin-top: 2px; }
+  .c-main { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  .hero2 { display: flex; align-items: flex-end; gap: 24px; padding: 18px 20px; }
+  .hero2 h2 { font-size: 26px; }
+  .hero2 .big { font-size: 44px; font-weight: 800; line-height: 1; }
+  .hero2 .chg { font-size: 14px; font-weight: 700; }
+  .bigchart { flex: 1; margin: 0 20px 14px; background: #F8FAFC; border: 1px solid #EEF2F7; border-radius: 8px; position: relative; }
+  .tiles { display: flex; gap: 12px; padding: 0 20px 14px; }
+  .tile { flex: 1; padding: 12px 14px; }
+  .tile span { font-size: 11px; color: #98A2B3; }
+  .tile b { display: block; font-size: 18px; margin-top: 4px; }
+
+  .statusbar { height: 34px; background: #0F172A; color: #B9C2D0; display: flex; align-items: center; padding: 0 18px; font-size: 11px; margin-top: auto; }
+  .statusbar .r { margin-left: auto; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== A ===== -->
+  <div class="titlebar"><div class="dot">A</div>股票涨跌提醒<span class="spacer">— □ ×</span></div>
+  <div class="header a-header">
+    <div class="brand">
+      <div class="logo">A</div>
+      <div><h1>A股涨跌提醒</h1><p>每 5 秒检查行情 · 本地隐私优先</p></div>
+    </div>
+    <div class="a-metrics">
+      <div class="a-metric"><b>4</b><span>监控股票</span></div>
+      <div class="a-metric"><b>0</b><span>今日触发</span></div>
+      <div class="a-metric"><b>00:21:25</b><span>行情时间</span></div>
+    </div>
+    <div class="spacer"></div>
+    <span class="chip muted" style="margin-right:10px">等待开盘</span>
+    <span class="chip ok" style="margin-right:16px">AKShare · 正常</span>
+    <div class="hbtn" style="margin-right:8px">继续监控</div>
+    <div class="hbtn">设置</div>
+  </div>
+  <div class="toolbar">
+    <div class="btn primary">＋ 添加股票</div>
+    <div class="btn">↻ 立即刷新</div>
+    <div class="btn">编辑</div>
+    <div class="btn">删除</div>
+    <div class="hint">双击编辑 · 右键更多操作</div>
+  </div>
+  <div class="a-body">
+    <div class="a-left">
+      <div class="card a-table">
+        <table>
+          <tr><th>股票</th><th>最新价</th><th>涨跌幅</th><th>昨收</th><th>阈值</th><th>状态</th><th>更新</th></tr>
+          <tr class="sel"><td><b>中国船舶</b><div class="muted" style="font-size:10px">SH600150</div></td><td class="up">35.30</td><td class="up">+3.49%</td><td>34.11</td><td>+3.00% / -2.00%</td><td>等待开盘</td><td class="muted">16:11:39</td></tr>
+          <tr><td><b>恒瑞医药</b><div class="muted" style="font-size:10px">SH600276</div></td><td class="up">49.31</td><td class="up">+1.27%</td><td>48.69</td><td>+2.00% / -3.00%</td><td>等待开盘</td><td class="muted">16:11:45</td></tr>
+          <tr><td><b>万马股份</b><div class="muted" style="font-size:10px">SZ002276</div></td><td class="up">9.63</td><td class="up">+1.05%</td><td>9.53</td><td>+3.00% / -3.00%</td><td>等待开盘</td><td class="muted">15:34:51</td></tr>
+          <tr><td><b>紫金矿业</b><div class="muted" style="font-size:10px">SH601899</div></td><td class="up">27.45</td><td class="up">+2.27%</td><td>26.84</td><td>+3.00% / -2.00%</td><td>等待开盘</td><td class="muted">16:11:55</td></tr>
+        </table>
+      </div>
+      <div class="card a-log">
+        <h3>今日触发 · 0 次</h3>
+        <div class="muted" style="padding:26px 14px;text-align:center;font-size:12px">今天还没有触发记录<br><span style="font-size:11px">达到阈值后会自动出现在这里</span></div>
+      </div>
+    </div>
+    <div class="card a-detail">
+      <div class="d-head">
+        <span class="chip warn" style="float:right">等待开盘</span>
+        <div class="d-name">中国船舶</div>
+        <div class="d-code">SH600150 · 沪市</div>
+        <div class="d-price up">35.30</div>
+        <div class="d-chg up">↑ +1.19　+3.49%</div>
+      </div>
+      <div class="d-chart">
+        <svg width="348" height="128">
+          <polyline points="12,96 60,80 110,66 160,50 210,40 260,36 300,36 336,36" fill="none" stroke="#D33A3A" stroke-width="2"/>
+          <circle cx="336" cy="36" r="3" fill="#D33A3A"/>
+        </svg>
+      </div>
+      <div class="d-grid">
+        <div class="muted">基准价 <b class="mid" style="display:block">34.11</b></div>
+        <div class="muted">下跌阈值 <b class="down" style="display:block">-2.00%</b></div>
+        <div class="muted">上涨阈值 <b class="up" style="display:block">+3.00%</b></div>
+        <div class="muted">重置幅度 <b class="mid" style="display:block">1.00%</b></div>
+        <div class="muted">提醒间隔 <b class="mid" style="display:block">120 秒</b></div>
+        <div class="muted">免打扰 <b class="mid" style="display:block">未启用</b></div>
+      </div>
+      <div class="d-actions">
+        <div class="btn primary" style="flex:1">编辑设置</div>
+        <div class="btn">⋯</div>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar"><span>下一时段：今日 09:30</span><span class="r">AKShare（东方财富个股）· 更新成功</span></div>
+
+</body>
+</html>

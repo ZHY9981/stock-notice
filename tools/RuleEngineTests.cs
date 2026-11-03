@@ -103,7 +103,7 @@ namespace StockNotice.Tests
             Check("custom base notifies", customEval.UpTrigger.ShouldNotify, true);
 
             // 9. AKShare single-stock fields map to the shared quote model.
-            string akShareJson = "{\"rc\":0,\"data\":{\"f43\":1329.0,\"f57\":\"600519\","
+            string akShareJson = "{\"rc\":0,\"data\":{\"f43\":1329.0,\"f46\":1315.0,\"f57\":\"600519\","
                 + "\"f58\":\"贵州茅台\",\"f60\":1312.97,\"f86\":1792138307,\"f170\":1.22}}";
             Quote akShareQuote = AkShareQuoteParser.Parse(
                 "600519",
@@ -115,6 +115,7 @@ namespace StockNotice.Tests
             Check("akshare quote name", akShareQuote.Name, "贵州茅台");
             Check("akshare quote price", akShareQuote.Price, 1329.0m);
             Check("akshare quote previous close", akShareQuote.PreviousClose, 1312.97m);
+            Check("akshare quote open", akShareQuote.Open, 1315.0m);
             Check("akshare quote percent", akShareQuote.ChangePercent, 1.22m);
             Check("akshare quote timestamp", akShareQuote.Timestamp != DateTime.MinValue, true);
 

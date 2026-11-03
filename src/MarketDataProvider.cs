@@ -234,7 +234,7 @@ namespace StockNotice
             {
                 string marketId = stock.Market == MarketNames.Shanghai ? "1" : "0";
                 string url = "https://push2.eastmoney.com/api/qt/stock/get"
-                    + "?fltt=2&invt=2&fields=f43,f57,f58,f60,f86,f170"
+                    + "?fltt=2&invt=2&fields=f43,f46,f57,f58,f60,f86,f170"
                     + "&secid=" + marketId + "." + stock.Code;
 
                 using (HttpResponseMessage response = await _http.GetAsync(url))
@@ -423,6 +423,7 @@ namespace StockNotice
                 quote.Name = ToText(item.f14);
                 quote.Price = ToDecimal(item.f2);
                 quote.PreviousClose = ToDecimal(item.f18);
+                quote.Open = ToDecimal(item.f17);
                 quote.ChangePercent = ToDecimal(item.f3);
                 quote.Timestamp = FromUnixSeconds(ToLong(item.f124));
                 quote.IsValid = quote.Price > 0m && quote.PreviousClose > 0m;
@@ -477,6 +478,7 @@ namespace StockNotice
                 quote.Name = fields.Length > 1 ? fields[1] : quote.Code;
                 quote.Price = ToDecimal(fields[3]);
                 quote.PreviousClose = ToDecimal(fields[4]);
+                quote.Open = fields.Length > 5 ? ToDecimal(fields[5]) : 0m;
                 quote.ChangePercent = fields.Length > 32 ? ToDecimal(fields[32]) : 0m;
                 quote.Timestamp = ParseTencentTime(fields.Length > 30 ? fields[30] : string.Empty);
                 quote.IsValid = quote.Price > 0m && quote.PreviousClose > 0m;

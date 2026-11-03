@@ -52,6 +52,7 @@ namespace StockNotice
 
             quote.Price = ToDecimal(payload.data.f43);
             quote.PreviousClose = ToDecimal(payload.data.f60);
+            quote.Open = ToDecimal(payload.data.f46);
             quote.ChangePercent = ToDecimal(payload.data.f170);
             quote.Timestamp = FromUnixSeconds(ToLong(payload.data.f86));
             quote.IsValid = quote.Price > 0m && quote.PreviousClose > 0m;
@@ -121,6 +122,7 @@ namespace StockNotice
         private class AkShareQuoteData
         {
             public object f43 { get; set; }
+            public object f46 { get; set; }
             public object f57 { get; set; }
             public object f58 { get; set; }
             public object f60 { get; set; }

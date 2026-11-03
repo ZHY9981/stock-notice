@@ -68,6 +68,7 @@ namespace StockNotice
         public string Name { get; set; }
         public decimal Price { get; set; }
         public decimal PreviousClose { get; set; }
+        public decimal Open { get; set; }
         public decimal ChangePercent { get; set; }
         public DateTime Timestamp { get; set; }
         public bool IsValid { get; set; }

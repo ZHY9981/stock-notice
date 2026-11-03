@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #dfe5ee; font-family: "Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif; color: #18202C; }
+  .wrap { width: 1280px; height: 800px; background: #F5F7FA; display: flex; flex-direction: column; overflow: hidden; }
+  .titlebar { height: 30px; background: #f3f3f3; display: flex; align-items: center; padding: 0 10px; gap: 8px; color: #333; font-size: 12px; border-bottom: 1px solid #e2e2e2; }
+  .titlebar .dot { width: 14px; height: 14px; border-radius: 50%; background: #1f2937; color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; }
+  .titlebar .spacer { margin-left: auto; letter-spacing: 10px; color: #666; }
+
+  .header { height: 64px; background: #111827; color: #fff; display: flex; align-items: center; padding: 0 20px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 34px; height: 34px; border-radius: 9px; background: #1E293B; border: 1px solid #2B3A55; display: flex; align-items: center; justify-content: center; color: #93B4FF; font-weight: 800; font-size: 14px; }
+  .brand h1 { font-size: 17px; font-weight: 700; }
+  .brand p { font-size: 10px; color: #8C9AB3; margin-top: 2px; }
+  .a-metrics { display: flex; gap: 24px; margin-left: 26px; }
+  .a-metric b { display: block; font-size: 15px; }
+  .a-metric span { font-size: 10px; color: #8C9AB3; }
+  .idx { display: flex; gap: 16px; margin-left: 26px; padding-left: 22px; border-left: 1px solid #253044; }
+  .idx div { line-height: 1.35; }
+  .idx i { display: block; font-style: normal; font-size: 10px; color: #8C9AB3; }
+  .idx b { font-size: 12.5px; font-weight: 700; }
+  .idx span { font-size: 11px; margin-left: 4px; }
+  .chip { border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+  .chip.muted { background: #1F2937; color: #B9C2D0; border: 1px solid #334155; }
+  .chip.ok { background: #14352C; color: #7EF0B8; border: 1px solid #245B47; }
+  .chip.warn { background: #3A2327; color: #FF8E8E; border: 1px solid #5B333A; }
+  .spacer { flex: 1; }
+  .hbtn { border: 1px solid #3A4557; background: #182130; color: #E5E7EB; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 700; }
+  .hbtn.primary { background: #3B6FF5; border-color: #3B6FF5; color: #fff; }
+
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 9px 20px; }
+  .btn { border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 600; border: 1px solid #D5DCE6; background: #fff; color: #344054; }
+  .btn.primary { background: #3B6FF5; color: #fff; border-color: #3B6FF5; }
+  .hint { margin-left: auto; color: #98A2B3; font-size: 11px; }
+
+  .card { background: #fff; border: 1px solid #E3E8EF; border-radius: 8px; }
+  .up { color: #D33A3A; } .down { color: #078552; } .muted { color: #98A2B3; } .mid { color: #475467; }
+
+  .body { flex: 1; display: flex; gap: 12px; padding: 2px 20px 0; min-height: 0; }
+  .left { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .tablecard { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .cardhead { display: flex; align-items: center; padding: 9px 14px; border-bottom: 1px solid #E9EEF5; font-size: 11.5px; color: #667085; }
+  .cardhead b { color: #344054; margin-right: 8px; }
+  .cardhead .r { margin-left: auto; color: #98A2B3; }
+  .scroller { flex: 1; overflow: hidden; position: relative; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; color: #98A2B3; font-weight: 600; padding: 7px 12px; background: #F8FAFC; border-bottom: 1px solid #E3E8EF; white-space: nowrap; }
+  td { padding: 8px 12px; border-bottom: 1px solid #F1F4F8; white-space: nowrap; }
+  tr.sel td { background: #EAF0FF; }
+  .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 26px; background: linear-gradient(to bottom, rgba(255,255,255,0), #fff); }
+
+  .logcard { height: 196px; display: flex; flex-direction: column; overflow: hidden; }
+  .logrow { display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-top: 1px solid #F1F4F8; font-size: 12px; }
+  .logrow .t { color: #98A2B3; width: 46px; }
+  .logrow .n { font-weight: 600; width: 96px; }
+  .logrow .v { margin-left: auto; font-weight: 700; }
+  .link { color: #3B6FF5; font-size: 12px; }
+
+  .detail { width: 380px; display: flex; flex-direction: column; }
+  .d-head { padding: 14px 16px 6px; }
+  .d-name { font-size: 20px; font-weight: 800; }
+  .d-code { font-size: 11px; color: #98A2B3; margin-top: 2px; }
+  .d-price { font-size: 34px; font-weight: 800; margin-top: 4px; }
+  .d-chg { font-size: 12px; font-weight: 700; margin-top: 2px; }
+  .d-chart { height: 118px; background: #F8FAFC; border: 1px solid #EEF2F7; border-radius: 6px; margin: 6px 16px 2px; }
+  .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; padding: 6px 16px 0; font-size: 12px; }
+  .d-grid b { font-size: 13px; display: block; }
+  .d-summary { margin: 10px 16px 0; border: 1px solid #E3E8EF; border-radius: 6px; background: #FAFBFD; padding: 10px 12px; font-size: 12px; line-height: 1.7; }
+  .d-summary .t { font-weight: 700; color: #344054; margin-bottom: 2px; }
+  .d-actions { margin-top: auto; padding: 12px 16px; display: flex; gap: 8px; }
+  .statusbar { height: 34px; background: #0F172A; color: #B9C2D0; display: flex; align-items: center; padding: 0 18px; font-size: 11px; }
+  .statusbar .r { margin-left: auto; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="titlebar"><div class="dot">A</div>股票涨跌提醒<span class="spacer">— □ ×</span></div>
+
+  <div class="header">
+    <div class="brand">
+      <div class="logo">A</div>
+      <div><h1>A股涨跌提醒</h1><p>每 5 秒检查行情 · 本地隐私优先</p></div>
+    </div>
+    <div class="a-metrics">
+      <div class="a-metric"><b>12</b><span>监控股票</span></div>
+      <div class="a-metric"><b>3</b><span>今日触发</span></div>
+      <div class="a-metric"><b>10:42:18</b><span>行情时间</span></div>
+    </div>
+    <div class="idx">
+      <div><i>上证</i><b>3298.12</b><span class="up">+0.42%</span></div>
+      <div><i>深成</i><b>10512.30</b><span class="up">+0.71%</span></div>
+      <div><i>创业板</i><b>2187.55</b><span class="down">-0.12%</span></div>
+    </div>
+    <div class="spacer"></div>
+    <span class="chip ok" style="margin-right:10px">交易中</span>
+    <span class="chip ok" style="margin-right:16px">AKShare · 正常</span>
+    <div class="hbtn" style="margin-right:8px">暂停监控</div>
+    <div class="hbtn">设置</div>
+  </div>
+
+  <div class="toolbar">
+    <div class="btn primary">＋ 添加股票</div>
+    <div class="btn">↻ 立即刷新</div>
+    <div class="btn">编辑</div>
+    <div class="btn">删除</div>
+    <div class="hint">双击编辑 · 右键更多操作</div>
+  </div>
+
+  <div class="body">
+    <div class="left">
+      <div class="card tablecard">
+        <div class="cardhead"><b>自选 12 只</b><span>按涨跌幅排序</span><span class="r">列表可滚动，上下键切换</span></div>
+        <div class="scroller">
+          <table>
+            <tr><th>股票</th><th>最新价</th><th>涨跌幅</th><th>开盘价</th><th>昨收</th><th>状态</th><th>更新</th></tr>
+            <tr class="sel"><td><b>中国船舶</b> <span class="muted" style="font-size:10px">SH600150</span></td><td class="up">35.30</td><td class="up">+3.49%</td><td>34.20</td><td class="muted">34.11</td><td>已通知 2 次</td><td class="muted">10:42:15</td></tr>
+            <tr><td><b>紫金矿业</b> <span class="muted" style="font-size:10px">SH601899</span></td><td class="up">27.45</td><td class="up">+2.27%</td><td>26.95</td><td class="muted">26.84</td><td>监控中</td><td class="muted">10:42:15</td></tr>
+            <tr><td><b>恒瑞医药</b> <span class="muted" style="font-size:10px">SH600276</span></td><td class="up">49.31</td><td class="up">+1.27%</td><td>48.80</td><td class="muted">48.69</td><td>监控中</td><td class="muted">10:42:15</td></tr>
+            <tr><td><b>万马股份</b> <span class="muted" style="font-size:10px">SZ002276</span></td><td class="down">9.32</td><td class="down">-3.02%</td><td>9.61</td><td class="muted">9.53</td><td>已通知 1 次</td><td class="muted">10:42:15</td></tr>
+            <tr><td><b>宁德时代</b> <span class="muted" style="font-size:10px">SZ300750</span></td><td class="up">231.40</td><td class="up">+0.86%</td><td>229.80</td><td class="muted">229.44</td><td>监控中</td><td class="muted">10:42:15</td></tr>
+            <tr><td><b>招商银行</b> <span class="muted" style="font-size:10px">SH600036</span></td><td class="down">38.92</td><td class="down">-0.34%</td><td>39.10</td><td class="muted">39.05</td><td>监控中</td><td class="muted">10:42:15</td></tr>
+            <tr><td><b>比亚迪</b> <span class="muted" style="font-size:10px">SZ002594</span></td><td class="up">268.10</td><td class="up">+0.45%</td><td>267.20</td><td class="muted">266.90</td><td>监控中</td><td class="muted">10:42:15</td></tr>
+            <tr><td><b>中芯国际</b> <span class="muted" style="font-size:10px">SH688981</span></td><td class="up">92.66</td><td class="up">+1.92%</td><td>91.20</td><td class="muted">90.92</td><td>监控中</td><td class="muted">10:42:15</td></tr>
+            <tr><td><b>中国平安</b> <span class="muted" style="font-size:10px">SH601318</span></td><td class="down">51.20</td><td class="down">-0.62%</td><td>51.60</td><td class="muted">51.52</td><td>监控中</td><td class="muted">10:42:15</td></tr>
+          </table>
+          <div class="fade"></div>
+        </div>
+      </div>
+
+      <div class="card logcard">
+        <div class="cardhead"><b>今日触发 3 次</b><span>点一行可定位到该股</span><span class="r link">查看全部 →</span></div>
+        <div class="logrow"><span class="t">10:32</span><span class="n">中国船舶</span><span class="up">↑ 上涨 +3.02%</span><span class="muted">35.14</span><span class="v up">第 2 次</span></div>
+        <div class="logrow"><span class="t">09:58</span><span class="n">紫金矿业</span><span class="up">↑ 上涨 +2.31%</span><span class="muted">27.46</span><span class="v up">第 1 次</span></div>
+        <div class="logrow"><span class="t">09:41</span><span class="n">万马股份</span><span class="down">↓ 下跌 -3.02%</span><span class="muted">9.32</span><span class="v down">第 1 次</span></div>
+      </div>
+    </div>
+
+    <div class="card detail">
+      <div class="d-head">
+        <span class="chip ok" style="float:right">监控中</span>
+        <div class="d-name">中国船舶</div>
+        <div class="d-code">SH600150 · 沪市</div>
+        <div class="d-price up">35.30</div>
+        <div class="d-chg up">↑ +1.19　+3.49%</div>
+      </div>
+      <div class="d-chart">
+        <svg width="346" height="116">
+          <line x1="0" y1="70" x2="346" y2="70" stroke="#E3E8EF" stroke-dasharray="4 4"/>
+          <polyline points="8,96 48,88 88,74 128,66 168,52 208,46 248,38 288,32 330,30" fill="none" stroke="#D33A3A" stroke-width="2"/>
+          <circle cx="330" cy="30" r="3" fill="#D33A3A"/>
+        </svg>
+      </div>
+      <div class="d-grid">
+        <div class="muted">基准价 <b class="mid">34.11</b></div>
+        <div class="muted">下跌阈值 <b class="down">-2.00%</b></div>
+        <div class="muted">上涨阈值 <b class="up">+3.00%</b></div>
+        <div class="muted">重置幅度 <b class="mid">1.00%</b></div>
+        <div class="muted">提醒间隔 <b class="mid">120 秒</b></div>
+        <div class="muted">免打扰 <b class="mid">未启用</b></div>
+      </div>
+      <div class="d-summary">
+        <div class="t">今日汇总 <span class="link" style="float:right;font-weight:400">查看</span></div>
+        <div>触发 3 次 · 2 只上涨 / 1 只下跌</div>
+        <div>最强 中国船舶 +3.49% · 最弱 万马股份 -3.02%</div>
+        <div class="muted" style="font-size:11px">15:05 自动推送，也可以现在手动查看</div>
+      </div>
+      <div class="d-actions">
+        <div class="btn primary" style="flex:1">编辑股票</div>
+        <div class="btn">⋯</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar"><span>下一时段：今日 13:00</span><span class="r">AKShare（东方财富个股）· 更新成功</span></div>
+</div>
+</body>
+</html>
