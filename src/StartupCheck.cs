@@ -28,9 +28,15 @@ namespace StockNotice
             {
                 result.Issues.Add("交易日历未加载，已回退为工作日判断");
             }
+            else if (TradingCalendar.LatestDate < MarketClock.Now().Date)
+            {
+                result.Issues.Add("交易日历已于 " + TradingCalendar.LatestDate.ToString("yyyy-MM-dd")
+                    + " 过期，节假日会按工作日误判，请更新 trading-calendar.json");
+            }
             else if (TradingCalendar.LatestDate < MarketClock.Now().Date.AddDays(30))
             {
-                result.Issues.Add("交易日历即将过期，请更新 calendar.json");
+                result.Issues.Add("交易日历将在 " + TradingCalendar.LatestDate.ToString("yyyy-MM-dd")
+                    + " 到期，请更新 trading-calendar.json");
             }
 
             if (store == null)

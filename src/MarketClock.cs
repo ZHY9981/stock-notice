@@ -6,6 +6,11 @@ namespace StockNotice
     {
         private static readonly TimeZoneInfo ChinaTimeZone = ResolveChinaTimeZone();
 
+        public static readonly TimeSpan MorningOpen = new TimeSpan(9, 30, 0);
+        public static readonly TimeSpan MorningClose = new TimeSpan(11, 30, 0);
+        public static readonly TimeSpan AfternoonOpen = new TimeSpan(13, 0, 0);
+        public static readonly TimeSpan AfternoonClose = new TimeSpan(15, 0, 0);
+
         private static TimeZoneInfo ResolveChinaTimeZone()
         {
             try
@@ -35,10 +40,24 @@ namespace StockNotice
                 return false;
             }
 
-            int minutes = chinaNow.Hour * 60 + chinaNow.Minute;
-            bool morning = minutes >= 9 * 60 + 30 && minutes <= 11 * 60 + 30;
-            bool afternoon = minutes >= 13 * 60 && minutes <= 15 * 60;
+            TimeSpan time = chinaNow.TimeOfDay;
+            bool morning = time >= MorningOpen && time <= MorningClose;
+            bool afternoon = time >= AfternoonOpen && time < AfternoonClose;
             return morning || afternoon;
+        }
+
+        // The exchange stops pushing quotes at 15:00 sharp, so the closing
+        // print needs one extra poll right after the bell.
+        public static bool IsCloseCaptureWindow(DateTime chinaNow)
+        {
+            if (!TradingCalendar.IsTradingDay(chinaNow.Date)) return false;
+            TimeSpan time = chinaNow.TimeOfDay;
+            return time >= AfternoonClose && time < AfternoonClose.Add(TimeSpan.FromMinutes(2));
+        }
+
+        public static bool IsAfterClose(DateTime chinaNow)
+        {
+            return TradingCalendar.IsTradingDay(chinaNow.Date) && chinaNow.TimeOfDay >= AfternoonClose;
         }
 
         public static bool IsTradingSessionNow()
@@ -57,12 +76,12 @@ namespace StockNotice
                 return "节假日休市";
             }
 
-            int minutes = chinaNow.Hour * 60 + chinaNow.Minute;
-            if (minutes < 9 * 60 + 15) return "等待开盘";
-            if (minutes < 9 * 60 + 30) return "集合竞价";
-            if (minutes <= 11 * 60 + 30) return "上午交易中";
-            if (minutes < 13 * 60) return "午间休市";
-            if (minutes <= 15 * 60) return "下午交易中";
+            TimeSpan time = chinaNow.TimeOfDay;
+            if (time < new TimeSpan(9, 15, 0)) return "等待开盘";
+            if (time < MorningOpen) return "集合竞价";
+            if (time <= MorningClose) return "上午交易中";
+            if (time < AfternoonOpen) return "午间休市";
+            if (time < AfternoonClose) return "下午交易中";
             return "已收盘";
         }
 
@@ -73,21 +92,16 @@ namespace StockNotice
 
             if (TradingCalendar.IsTradingDay(chinaNow.Date))
             {
-                int minutes = chinaNow.Hour * 60 + chinaNow.Minute;
-                if (minutes < 9 * 60 + 30)
+                TimeSpan time = chinaNow.TimeOfDay;
+                if (time < MorningOpen)
                 {
                     nextSessionDate = chinaNow.Date;
                     nextSessionTime = "09:30";
                 }
-                else if (minutes < 13 * 60)
+                else if (time < AfternoonOpen)
                 {
                     nextSessionDate = chinaNow.Date;
                     nextSessionTime = "13:00";
-                }
-                else if (minutes <= 15 * 60)
-                {
-                    nextSessionDate = TradingCalendar.GetNextTradingDay(chinaNow.Date);
-                    nextSessionTime = "09:30";
                 }
                 else
                 {

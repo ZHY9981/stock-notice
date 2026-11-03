@@ -167,6 +167,7 @@ namespace StockNotice
         public string QuietHoursStart { get; set; }
         public string QuietHoursEnd { get; set; }
         public int StaleQuoteSeconds { get; set; }
+        public string LastSummaryDate { get; set; }
 
         public AppSettings()
         {
@@ -179,6 +180,7 @@ namespace StockNotice
             QuietHoursStart = "22:00";
             QuietHoursEnd = "08:00";
             StaleQuoteSeconds = 30;
+            LastSummaryDate = string.Empty;
         }
 
         public void Normalize()
@@ -188,6 +190,7 @@ namespace StockNotice
             if (AlertCooldownSeconds > 3600) AlertCooldownSeconds = 3600;
             if (StaleQuoteSeconds < 5) StaleQuoteSeconds = 5;
             if (StaleQuoteSeconds > 300) StaleQuoteSeconds = 300;
+            if (LastSummaryDate == null) LastSummaryDate = string.Empty;
             QuietHoursStart = NormalizeClock(QuietHoursStart, "22:00");
             QuietHoursEnd = NormalizeClock(QuietHoursEnd, "08:00");
         }

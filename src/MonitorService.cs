@@ -66,9 +66,14 @@ namespace StockNotice
         private DateTime _lastAttemptAt;
         private DateTime _lastTransportResetAt;
         private int _consecutiveFailures;
+        private string _closeCapturedDate;
+        private string _lastSummaryDate;
+        private DateTime _lastStaleLogAt;
+        private int _lastStaleCount;
 
         public event EventHandler<TriggerEventArgs> TriggerRaised;
         public event EventHandler<MonitorSnapshotEventArgs> SnapshotUpdated;
+        public event EventHandler<DailySummaryEventArgs> DailySummaryRaised;
 
         public MonitorService(AppState state, JsonStateStore store, MarketDataService marketData, RuleEngine ruleEngine)
         {
@@ -82,6 +87,10 @@ namespace StockNotice
             _statusMessage = "等待首次检查";
             _providerName = "免费公开行情源";
             _lastFetchAt = DateTime.MinValue;
+            _closeCapturedDate = string.Empty;
+            _lastSummaryDate = _state.Settings == null ? string.Empty : _state.Settings.LastSummaryDate;
+            _lastStaleLogAt = DateTime.MinValue;
+            _lastStaleCount = 0;
         }
 
         public string StatusMessage
@@ -237,18 +246,29 @@ namespace StockNotice
                 DateTime now = MarketClock.Now();
                 bool session = MarketClock.IsTradingSession(now);
                 bool evaluate = session && _state.Settings.MonitoringEnabled;
+                bool captureClose = ShouldCaptureClose(now);
 
-                lock (_sync)
+                if (!session && !captureClose)
                 {
-                    if (!session && _initialDisplayDone)
+                    MaybeRaiseDailySummary(now);
+
+                    lock (_sync)
                     {
-                        _statusMessage = MarketClock.GetSessionText(now);
-                        return;
+                        if (_initialDisplayDone)
+                        {
+                            _statusMessage = MarketClock.GetSessionText(now);
+                            return;
+                        }
                     }
                 }
 
                 await PollCoreAsync(evaluate, now, false);
                 _initialDisplayDone = true;
+
+                if (!session)
+                {
+                    MaybeRaiseDailySummary(now);
+                }
             }
             catch (Exception ex)
             {
@@ -462,8 +482,21 @@ namespace StockNotice
                 {
                     _statusMessage += "；" + staleQuotes.ToString() + " 只股票行情未更新";
                 }
-                AppLogger.Warn(staleQuotes.ToString()
-                    + " quote(s) were stale and skipped for alert evaluation.");
+
+                bool writeLog = staleQuotes != _lastStaleCount
+                    || _lastStaleLogAt == DateTime.MinValue
+                    || chinaNow - _lastStaleLogAt >= TimeSpan.FromMinutes(1);
+                if (writeLog)
+                {
+                    _lastStaleLogAt = chinaNow;
+                    AppLogger.Warn(staleQuotes.ToString()
+                        + " quote(s) were stale and skipped for alert evaluation.");
+                }
+                _lastStaleCount = staleQuotes;
+            }
+            else
+            {
+                _lastStaleCount = 0;
             }
 
             if (newTriggers.Count > 0)
@@ -591,6 +624,61 @@ namespace StockNotice
             {
                 history.RemoveAt(0);
             }
+        }
+
+        private bool ShouldCaptureClose(DateTime chinaNow)
+        {
+            if (!MarketClock.IsCloseCaptureWindow(chinaNow)) return false;
+
+            string today = chinaNow.ToString("yyyy-MM-dd");
+            if (string.Equals(_closeCapturedDate, today, StringComparison.Ordinal)) return false;
+
+            _closeCapturedDate = today;
+            return true;
+        }
+
+        private void MaybeRaiseDailySummary(DateTime chinaNow)
+        {
+            if (!DailySummary.IsSummaryWindow(chinaNow)) return;
+            if (_state.Settings == null || !_state.Settings.MonitoringEnabled) return;
+
+            string today = chinaNow.ToString("yyyy-MM-dd");
+            if (string.Equals(_lastSummaryDate, today, StringComparison.Ordinal)) return;
+
+            List<StockConfig> stocks;
+            List<TriggerRecord> history;
+            Dictionary<string, Quote> quotes = new Dictionary<string, Quote>();
+            lock (_sync)
+            {
+                stocks = _state.Stocks == null
+                    ? new List<StockConfig>()
+                    : new List<StockConfig>(_state.Stocks);
+                history = _state.History == null
+                    ? new List<TriggerRecord>()
+                    : new List<TriggerRecord>(_state.History);
+                foreach (KeyValuePair<string, Quote> pair in _quotes)
+                {
+                    quotes[pair.Key] = pair.Value;
+                }
+            }
+
+            DailySummaryReport report = DailySummary.Build(chinaNow, stocks, quotes, history);
+            if (report == null) return;
+
+            _lastSummaryDate = today;
+            _state.Settings.LastSummaryDate = today;
+            try
+            {
+                _store.Save(_state);
+            }
+            catch
+            {
+                // A failed save must not block the summary itself.
+            }
+
+            AppLogger.Info("Daily summary: " + report.FullText.Replace("\r\n", " | "));
+            EventHandler<DailySummaryEventArgs> handler = DailySummaryRaised;
+            if (handler != null) handler(this, new DailySummaryEventArgs(report));
         }
 
         private int CalculateDataAgeSeconds()

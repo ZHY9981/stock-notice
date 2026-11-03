@@ -54,6 +54,7 @@ namespace StockNotice
         private bool _allowExit;
         private bool _trayHintShown;
         private string _pendingNotificationStockId;
+        private bool _pendingSummaryView;
         private string _alertBannerText;
         private DateTime _alertBannerUntil;
         private readonly Font _tabFont;
@@ -100,6 +101,7 @@ namespace StockNotice
 
             _monitor.TriggerRaised += Monitor_TriggerRaised;
             _monitor.SnapshotUpdated += Monitor_SnapshotUpdated;
+            _monitor.DailySummaryRaised += Monitor_DailySummaryRaised;
 
             _uiTimer = new Timer();
             _uiTimer.Interval = 1000;
@@ -1500,6 +1502,7 @@ namespace StockNotice
 
             TriggerRecord record = e.Record;
             _pendingNotificationStockId = record.StockId;
+            _pendingSummaryView = false;
             string title = record.StockName + " " + AppResources.DirectionText(record.Direction)
                 + " " + record.ChangePercent.ToString("0.00") + "%";
             string body = "当前价格 " + AppResources.FormatPrice(record.Price);
@@ -1513,6 +1516,30 @@ namespace StockNotice
             _tray.Text = "股票涨跌提醒 · 刚刚触发";
             ShowAlertBanner(title + " · " + body, 30);
             AppLogger.Info("Notification shown: " + title + " " + body);
+            RefreshAll();
+        }
+
+        private void Monitor_DailySummaryRaised(object sender, DailySummaryEventArgs e)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(delegate { Monitor_DailySummaryRaised(sender, e); }));
+                return;
+            }
+
+            DailySummaryReport report = e.Report;
+            _pendingNotificationStockId = null;
+            _pendingSummaryView = true;
+
+            _tray.ShowBalloonTip(8000, report.Title, report.Body, ToolTipIcon.Info);
+            if (_state.Settings.SoundEnabled)
+            {
+                SystemSounds.Exclamation.Play();
+            }
+
+            _tray.Text = "股票涨跌提醒 · 收盘汇总";
+            ShowAlertBanner(report.ShortText, 60);
             RefreshAll();
         }
 
@@ -1539,6 +1566,12 @@ namespace StockNotice
                 SelectStock(_pendingNotificationStockId);
                 _pendingNotificationStockId = null;
             }
+            else if (_pendingSummaryView)
+            {
+                _tabs.SelectedIndex = 1;
+            }
+
+            _pendingSummaryView = false;
             ShowFromTray();
         }
 

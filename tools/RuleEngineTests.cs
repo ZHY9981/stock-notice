@@ -297,6 +297,9 @@ namespace StockNotice.Tests
             legacyState.Normalize();
             Check("legacy history normalizes", legacyState.History[0].SuppressedReason, string.Empty);
 
+            RunSessionChecks();
+            RunDailySummaryChecks();
+
             Console.WriteLine();
             if (_failures == 0)
             {
@@ -352,6 +355,109 @@ namespace StockNotice.Tests
             quote.IsValid = true;
             quote.Timestamp = day;
             return engine.Evaluate(stock, quote, runtime, day, startup);
+        }
+
+        private static void RunSessionChecks()
+        {
+            DateTime day = new DateTime(2026, 11, 3);
+            Check("session opens at 09:30", MarketClock.IsTradingSession(day.AddHours(9).AddMinutes(30)), true);
+            Check("session closed at 09:29", MarketClock.IsTradingSession(day.AddHours(9).AddMinutes(29)), false);
+            Check("morning close print counted", MarketClock.IsTradingSession(day.AddHours(11).AddMinutes(30)), true);
+            Check("after morning close excluded", MarketClock.IsTradingSession(day.AddHours(11).AddMinutes(30).AddSeconds(1)), false);
+            Check("lunch break excluded", MarketClock.IsTradingSession(day.AddHours(12)), false);
+            Check("afternoon opens at 13:00", MarketClock.IsTradingSession(day.AddHours(13)), true);
+            Check("14:59:59 still trading", MarketClock.IsTradingSession(day.AddHours(15).AddSeconds(-1)), true);
+            Check("15:00 excluded from session", MarketClock.IsTradingSession(day.AddHours(15)), false);
+            Check("close capture at 15:00:30", MarketClock.IsCloseCaptureWindow(day.AddHours(15).AddSeconds(30)), true);
+            Check("close capture ends at 15:02", MarketClock.IsCloseCaptureWindow(day.AddHours(15).AddMinutes(2)), false);
+            Check("session text after close", MarketClock.GetSessionText(day.AddHours(15).AddSeconds(1)), "已收盘");
+            Check("session text at 14:59", MarketClock.GetSessionText(day.AddHours(15).AddSeconds(-1)), "下午交易中");
+            Check("weekend is not a session", MarketClock.IsTradingSession(new DateTime(2026, 11, 7, 10, 0, 0)), false);
+        }
+
+        private static void RunDailySummaryChecks()
+        {
+            DateTime day = new DateTime(2026, 11, 3, 15, 10, 0);
+
+            Check("summary window at 15:04", DailySummary.IsSummaryWindow(new DateTime(2026, 11, 3, 15, 4, 59)), false);
+            Check("summary window at 15:05", DailySummary.IsSummaryWindow(new DateTime(2026, 11, 3, 15, 5, 0)), true);
+            Check("summary window at 17:00", DailySummary.IsSummaryWindow(new DateTime(2026, 11, 3, 17, 0, 0)), false);
+            Check("summary window on weekend", DailySummary.IsSummaryWindow(new DateTime(2026, 11, 7, 15, 10, 0)), false);
+
+            List<StockConfig> stocks = new List<StockConfig>();
+            stocks.Add(SummaryStock("a", "600150", "中国船舶"));
+            stocks.Add(SummaryStock("b", "600276", "恒瑞医药"));
+            stocks.Add(SummaryStock("c", "002276", "万马股份"));
+
+            Dictionary<string, Quote> quotes = new Dictionary<string, Quote>();
+            quotes["a"] = SummaryQuote("600150", 103m, 100m);
+            quotes["b"] = SummaryQuote("600276", 97m, 100m);
+
+            List<TriggerRecord> history = new List<TriggerRecord>();
+            history.Add(SummaryTrigger("a", day.AddHours(-2)));
+            history.Add(SummaryTrigger("a", day.AddHours(-1)));
+            history.Add(SummaryTrigger("c", day.AddDays(-1)));
+
+            DailySummaryReport report = DailySummary.Build(day, stocks, quotes, history);
+            Check("summary is built", report != null, true);
+            Check("summary counts today triggers only", report.TriggerCount, 2);
+            Check("summary lists enabled stocks", report.Items.Count, 3);
+            Check("summary reports missing quote", report.MissingQuoteCount, 1);
+            Check("summary sorts strongest first", report.Items[0].Code, "600150");
+            Check("summary keeps missing quote last", report.Items[2].Code, "002276");
+            Check("summary title has date", report.Title, "收盘汇总 · 11-03");
+            Check("summary body mentions triggers", report.Body.Contains("今日触发 2 次"), true);
+            Check("summary body lists gainer", report.Body.Contains("中国船舶 +3.00%"), true);
+            Check("summary body lists loser", report.Body.Contains("恒瑞医药 -3.00%"), true);
+            Check("summary full text keeps price", report.FullText.Contains("中国船舶 +3.00% 103.00"), true);
+            Check("summary tags triggered stock", report.FullText.Contains("中国船舶 +3.00% 103.00 · 触发 2 次"), true);
+            Check("summary short text has leader", report.ShortText.Contains("中国船舶 +3.00%"), true);
+
+            // More than four quoted stocks collapse into "another N" line.
+            List<StockConfig> manyStocks = new List<StockConfig>();
+            Dictionary<string, Quote> manyQuotes = new Dictionary<string, Quote>();
+            for (int i = 0; i < 6; i++)
+            {
+                string id = "s" + i.ToString();
+                manyStocks.Add(SummaryStock(id, "60000" + i.ToString(), "股票" + i.ToString()));
+                manyQuotes[id] = SummaryQuote("60000" + i.ToString(), 100m + i, 100m);
+            }
+            DailySummaryReport manyReport = DailySummary.Build(day, manyStocks, manyQuotes, new List<TriggerRecord>());
+            Check("summary caps body list", manyReport.Body.Contains("…另 2 只"), true);
+
+            // No quote at all means there is nothing worth notifying.
+            DailySummaryReport emptyReport = DailySummary.Build(day, manyStocks, new Dictionary<string, Quote>(), new List<TriggerRecord>());
+            Check("summary needs at least one quote", emptyReport == null, true);
+        }
+
+        private static StockConfig SummaryStock(string id, string code, string name)
+        {
+            StockConfig stock = new StockConfig();
+            stock.Id = id;
+            stock.Code = code;
+            stock.Name = name;
+            stock.Enabled = true;
+            return stock;
+        }
+
+        private static Quote SummaryQuote(string code, decimal price, decimal previousClose)
+        {
+            Quote quote = new Quote();
+            quote.Code = code;
+            quote.Market = MarketNames.Shanghai;
+            quote.Price = price;
+            quote.PreviousClose = previousClose;
+            quote.IsValid = true;
+            quote.Timestamp = DateTime.Now;
+            return quote;
+        }
+
+        private static TriggerRecord SummaryTrigger(string stockId, DateTime triggeredAt)
+        {
+            TriggerRecord record = new TriggerRecord();
+            record.StockId = stockId;
+            record.TriggeredAt = triggeredAt;
+            return record;
         }
 
         private static void Check(string label, bool actual, bool expected)

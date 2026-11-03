@@ -27,6 +27,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1
 - `MonitorService.cs`：轮询调度、状态保存和通知触发。
 - `RuleEngine.cs`：涨跌阈值状态机，是核心业务逻辑。
 - `AlertPolicy.cs`：冷却时间和免打扰时段的投递决策。
+- `DailySummary.cs`：收盘汇总文本构建（纯逻辑，可离线测试）。
 - `TradingCalendar.cs`：嵌入式 A 股交易日历。
 - `MarketDataProvider.cs`：行情源选择和降级。
 - `IMarketQuoteProvider.cs`：可替换行情源接口。
@@ -45,6 +46,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-marketdata.ps1
 - 所有来源失败时保留最后一次有效行情，不能清空用户看到的价格。
 - 所有行情请求必须设置明确超时，不能无限等待；调整轮询间隔时同步检查超时设置。
 - 超过 `StaleQuoteSeconds` 的行情不得参与提醒，但可以继续显示为陈旧数据。
+- 交易时段以下午 15:00 为界（15:00:00 本身不算交易中）；收盘后 2 分钟内补取
+  一次收盘价，之后停止轮询。
+- 行情陈旧只影响提醒判断；stale 日志每分钟最多写一条，避免收盘后刷屏。
+- 收盘汇总在交易日 15:05–17:00 之间只发一次，日期写入 `Settings.LastSummaryDate`。
 - 连续行情失败时必须继续重试，并在达到阈值后重建 HTTP 连接。
 - 修改行情代码后，至少联网检查一只沪市股票和一只深市股票。
 - 交易日历使用 `src/trading-calendar.json`，每年从新版 AKShare 更新并重新构建。

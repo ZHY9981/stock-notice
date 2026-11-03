@@ -31,6 +31,7 @@ $sources = @(
     (Join-Path $srcDir 'IMarketQuoteProvider.cs'),
     (Join-Path $srcDir 'MarketDataProvider.cs'),
     (Join-Path $srcDir 'AkShareQuoteParser.cs'),
+    (Join-Path $srcDir 'DailySummary.cs'),
     (Join-Path $srcDir 'RuleEngine.cs'),
     (Join-Path $toolsDir 'RuleEngineTests.cs')
 )
