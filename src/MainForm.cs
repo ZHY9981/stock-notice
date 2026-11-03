@@ -47,6 +47,7 @@ namespace StockNotice
         private Label _detailFreshnessLabel;
         private Label _detailCooldownLabel;
         private Label _detailQuietLabel;
+        private Label _detailTodayLabel;
         private Button _detailEditButton;
         private NotifyIcon _tray;
         private ContextMenuStrip _trayMenu;
@@ -499,6 +500,24 @@ namespace StockNotice
 
             AddDetailLine(detail, "数据新鲜度", out _detailFreshnessLabel, 370);
             AddDetailLine(detail, "免打扰", out _detailQuietLabel, 397);
+
+            Label todayCaption = new Label();
+            todayCaption.Text = "今日汇总";
+            todayCaption.ForeColor = AppResources.Muted;
+            todayCaption.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            todayCaption.AutoSize = true;
+            todayCaption.Location = AppResources.SP(16, 430);
+            detail.Controls.Add(todayCaption);
+
+            _detailTodayLabel = new Label();
+            _detailTodayLabel.Text = "--";
+            _detailTodayLabel.ForeColor = AppResources.Text;
+            _detailTodayLabel.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            _detailTodayLabel.AutoSize = false;
+            _detailTodayLabel.Location = AppResources.SP(16, 448);
+            _detailTodayLabel.Size = AppResources.SS(268, 34);
+            _detailTodayLabel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            detail.Controls.Add(_detailTodayLabel);
 
             _detailEditButton = CreateButton("编辑设置", 118, 34, true, AppGlyph.Edit);
             _detailEditButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
@@ -1212,6 +1231,22 @@ namespace StockNotice
             _detailQuietLabel.Text = _state.Settings.QuietHoursEnabled
                 ? _state.Settings.QuietHoursStart + "–" + _state.Settings.QuietHoursEnd
                 : "未启用";
+
+            int todayCount = 0;
+            TriggerRecord latest = null;
+            DateTime today = MarketClock.Now().Date;
+            for (int i = 0; i < _state.History.Count; i++)
+            {
+                TriggerRecord item = _state.History[i];
+                if (item.TriggeredAt.Date != today) continue;
+                todayCount++;
+                if (latest == null || item.TriggeredAt > latest.TriggeredAt) latest = item;
+            }
+            _detailTodayLabel.Text = latest == null
+                ? "今天还没有触发记录"
+                : "今日触发 " + todayCount.ToString() + " 次 · 最近 "
+                    + latest.TriggeredAt.ToString("HH:mm") + " "
+                    + latest.StockName + " " + AppResources.FormatPercent(latest.ChangePercent);
 
             if (quote == null || quote.Timestamp == DateTime.MinValue)
             {
