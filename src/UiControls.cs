@@ -376,6 +376,430 @@ namespace StockNotice
         }
     }
 
+    // The benchmark strip that lives inside the dark header. Values stay aligned
+    // to the fixed 上证 / 深成 / 创业板 catalog even when a source is missing.
+    public class HeaderIndexStrip : Control
+    {
+        private readonly List<Quote> _quotes;
+        private readonly Font _nameFont;
+        private readonly Font _valueFont;
+        private readonly Font _changeFont;
+
+        public HeaderIndexStrip()
+        {
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+            BackColor = AppResources.Header;
+            _quotes = new List<Quote>();
+            _nameFont = AppResources.Font(8F, FontStyle.Regular);
+            _valueFont = AppResources.Font(11.5F, FontStyle.Bold);
+            _changeFont = AppResources.Font(10F, FontStyle.Bold);
+        }
+
+        public void SetQuotes(IList<Quote> quotes)
+        {
+            _quotes.Clear();
+            IList<IndexDefinition> definitions = IndexCatalog.All;
+            for (int i = 0; i < definitions.Count; i++)
+            {
+                Quote quote = quotes != null && i < quotes.Count ? quotes[i] : null;
+                _quotes.Add(quote);
+            }
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            e.Graphics.Clear(BackColor);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            using (Pen divider = new Pen(AppResources.HeaderLine))
+            {
+                e.Graphics.DrawLine(
+                    divider,
+                    0,
+                    AppResources.S(10),
+                    0,
+                    Height - AppResources.S(10));
+            }
+
+            int left = AppResources.S(18);
+            int top = Math.Max(0, (Height - AppResources.S(30)) / 2);
+            int slotWidth = Math.Max(AppResources.S(78), (Width - left) / 3);
+
+            for (int i = 0; i < _quotes.Count && i < IndexCatalog.All.Count; i++)
+            {
+                IndexDefinition definition = IndexCatalog.All[i];
+                Quote quote = _quotes[i];
+                int x = left + i * slotWidth;
+
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    definition.DisplayName,
+                    _nameFont,
+                    new Point(x, top),
+                    AppResources.HeaderMuted,
+                    TextFormatFlags.NoPadding);
+
+                string value = quote != null && quote.IsValid
+                    ? AppResources.FormatPrice(quote.Price)
+                    : "--";
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    value,
+                    _valueFont,
+                    new Point(x, top + AppResources.S(13)),
+                    AppResources.HeaderText,
+                    TextFormatFlags.NoPadding);
+
+                if (quote == null || !quote.IsValid) continue;
+
+                int valueWidth = TextRenderer.MeasureText(
+                    e.Graphics,
+                    value,
+                    _valueFont,
+                    new Size(int.MaxValue, int.MaxValue),
+                    TextFormatFlags.NoPadding).Width;
+                Color changeColor = quote.ChangePercent > 0m
+                    ? AppResources.HeaderUp
+                    : (quote.ChangePercent < 0m ? AppResources.HeaderDown : AppResources.HeaderMuted);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    AppResources.FormatPercent(quote.ChangePercent),
+                    _changeFont,
+                    new Point(x + valueWidth + AppResources.S(5), top + AppResources.S(16)),
+                    changeColor,
+                    TextFormatFlags.NoPadding);
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _nameFont.Dispose();
+                _valueFont.Dispose();
+                _changeFont.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+
+    public class TriggerRowEventArgs : EventArgs
+    {
+        public TriggerRowEventArgs(string stockId)
+        {
+            StockId = stockId;
+        }
+
+        public string StockId { get; private set; }
+    }
+
+    // Compact "today's triggers" timeline under the monitor table. Clicking a
+    // row selects that stock; the header link opens the full trigger history.
+    public class TriggerTimeline : Control
+    {
+        private const int MaxRows = 3;
+
+        private readonly List<TriggerRecord> _items;
+        private readonly Font _titleFont;
+        private readonly Font _hintFont;
+        private readonly Font _linkFont;
+        private readonly Font _timeFont;
+        private readonly Font _nameFont;
+        private readonly Font _changeFont;
+        private readonly Font _priceFont;
+        private readonly Font _badgeFont;
+
+        private int _totalToday;
+        private int _hoverRow;
+        private Rectangle _linkBounds;
+
+        public event EventHandler<TriggerRowEventArgs> RowActivated;
+        public event EventHandler ViewAllClicked;
+
+        public TriggerTimeline()
+        {
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+            BackColor = AppResources.Surface;
+            TabStop = true;
+            AccessibleName = "今日触发时间线";
+            _items = new List<TriggerRecord>();
+            _titleFont = AppResources.Font(9.5F, FontStyle.Bold);
+            _hintFont = AppResources.Font(8F, FontStyle.Regular);
+            _linkFont = AppResources.Font(8F, FontStyle.Regular);
+            _timeFont = AppResources.Font(8.5F, FontStyle.Regular);
+            _nameFont = AppResources.Font(9F, FontStyle.Bold);
+            _changeFont = AppResources.Font(8.5F, FontStyle.Bold);
+            _priceFont = AppResources.Font(8.5F, FontStyle.Regular);
+            _badgeFont = AppResources.Font(8.5F, FontStyle.Bold);
+        }
+
+        public void SetItems(IList<TriggerRecord> items, int totalToday)
+        {
+            _items.Clear();
+            if (items != null)
+            {
+                for (int i = 0; i < items.Count && _items.Count < MaxRows; i++)
+                {
+                    if (items[i] != null) _items.Add(items[i]);
+                }
+            }
+            _totalToday = Math.Max(0, totalToday);
+            if (_totalToday < _items.Count) _totalToday = _items.Count;
+            _hoverRow = -1;
+            Invalidate();
+        }
+
+        private int HeaderHeight
+        {
+            get { return AppResources.S(38); }
+        }
+
+        private int RowHeight
+        {
+            get
+            {
+                int available = Height - HeaderHeight;
+                int row = available / MaxRows;
+                return Math.Max(AppResources.S(32), row);
+            }
+        }
+
+        private int RowAt(int y)
+        {
+            if (y < HeaderHeight) return -1;
+            int rowHeight = RowHeight;
+            if (rowHeight <= 0) return -1;
+            int index = (y - HeaderHeight) / rowHeight;
+            return index >= 0 && index < _items.Count ? index : -1;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            e.Graphics.Clear(BackColor);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            int pad = AppResources.S(14);
+            int headerHeight = HeaderHeight;
+
+            string title = "今日触发 " + _totalToday.ToString() + " 次";
+            TextRenderer.DrawText(
+                e.Graphics,
+                title,
+                _titleFont,
+                new Rectangle(pad, 0, Math.Max(0, Width - pad * 2), headerHeight),
+                AppResources.Text,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding);
+            int titleWidth = TextRenderer.MeasureText(
+                e.Graphics,
+                title,
+                _titleFont,
+                new Size(int.MaxValue, int.MaxValue),
+                TextFormatFlags.NoPadding).Width;
+
+            string link = "查看全部 →";
+            int linkWidth = TextRenderer.MeasureText(
+                e.Graphics,
+                link,
+                _linkFont,
+                new Size(int.MaxValue, int.MaxValue),
+                TextFormatFlags.NoPadding).Width;
+            _linkBounds = new Rectangle(
+                Width - pad - linkWidth - AppResources.S(4),
+                0,
+                linkWidth + AppResources.S(4),
+                headerHeight);
+            TextRenderer.DrawText(
+                e.Graphics,
+                link,
+                _linkFont,
+                _linkBounds,
+                AppResources.Accent,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Right | TextFormatFlags.NoPadding);
+
+            if (Width > AppResources.S(390))
+            {
+                Rectangle hintBounds = new Rectangle(
+                    pad + titleWidth + AppResources.S(12),
+                    0,
+                    Math.Max(0, _linkBounds.Left - pad - titleWidth - AppResources.S(24)),
+                    headerHeight);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    "点一行可定位到该股",
+                    _hintFont,
+                    hintBounds,
+                    AppResources.Muted,
+                    TextFormatFlags.VerticalCenter
+                        | TextFormatFlags.Left
+                        | TextFormatFlags.NoPadding
+                        | TextFormatFlags.EndEllipsis);
+            }
+
+            using (Pen line = new Pen(AppResources.Border))
+            {
+                e.Graphics.DrawLine(line, 0, headerHeight - 1, Width, headerHeight - 1);
+            }
+
+            if (_items.Count == 0)
+            {
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    "今天还没有触发记录",
+                    _hintFont,
+                    new Rectangle(pad, headerHeight, Math.Max(0, Width - pad * 2), Math.Max(0, Height - headerHeight)),
+                    AppResources.Muted,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                return;
+            }
+
+            int rowHeight = RowHeight;
+            int timeX = pad;
+            int nameX = AppResources.S(62);
+            int changeX = AppResources.S(190);
+            int priceX = AppResources.S(350);
+            int badgeWidth = AppResources.S(64);
+
+            for (int i = 0; i < _items.Count; i++)
+            {
+                TriggerRecord item = _items[i];
+                int rowTop = headerHeight + i * rowHeight;
+
+                if (i > 0)
+                {
+                    using (Pen line = new Pen(AppResources.Border))
+                    {
+                        e.Graphics.DrawLine(line, pad, rowTop, Width - pad, rowTop);
+                    }
+                }
+
+                if (i == _hoverRow)
+                {
+                    using (SolidBrush hover = new SolidBrush(AppResources.FieldBackground))
+                    {
+                        e.Graphics.FillRectangle(
+                            hover,
+                            pad,
+                            rowTop + 1,
+                            Math.Max(0, Width - pad * 2),
+                            Math.Max(0, rowHeight - 1));
+                    }
+                }
+
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    item.TriggeredAt.ToString("HH:mm"),
+                    _timeFont,
+                    new Rectangle(timeX, rowTop, AppResources.S(44), rowHeight),
+                    AppResources.Muted,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding);
+
+                string name = string.IsNullOrEmpty(item.StockName) ? item.StockCode : item.StockName;
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    name,
+                    _nameFont,
+                    new Rectangle(nameX, rowTop, Math.Max(0, changeX - nameX - AppResources.S(10)), rowHeight),
+                    AppResources.Text,
+                    TextFormatFlags.VerticalCenter
+                        | TextFormatFlags.Left
+                        | TextFormatFlags.NoPadding
+                        | TextFormatFlags.EndEllipsis);
+
+                string direction = (item.Direction == "down" ? "↓ 下跌 " : "↑ 上涨 ")
+                    + AppResources.FormatPercent(item.ChangePercent);
+                Color changeColor = AppResources.ChangeColor(item.ChangePercent);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    direction,
+                    _changeFont,
+                    new Rectangle(changeX, rowTop, Math.Max(0, priceX - changeX - AppResources.S(10)), rowHeight),
+                    changeColor,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding);
+
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    AppResources.FormatPrice(item.Price),
+                    _priceFont,
+                    new Rectangle(priceX, rowTop, AppResources.S(76), rowHeight),
+                    AppResources.Muted,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding);
+
+                string badge = item.NotificationNumber > 0
+                    ? "第 " + item.NotificationNumber.ToString() + " 次"
+                    : "触发";
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    badge,
+                    _badgeFont,
+                    new Rectangle(Math.Max(0, Width - pad - badgeWidth), rowTop, badgeWidth, rowHeight),
+                    changeColor,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Right | TextFormatFlags.NoPadding);
+            }
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            int row = RowAt(e.Y);
+            if (row != _hoverRow)
+            {
+                _hoverRow = row;
+                Invalidate();
+            }
+            Cursor = row >= 0 || _linkBounds.Contains(e.Location) ? Cursors.Hand : Cursors.Default;
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            if (_hoverRow != -1)
+            {
+                _hoverRow = -1;
+                Invalidate();
+            }
+            Cursor = Cursors.Default;
+        }
+
+        protected override void OnMouseClick(MouseEventArgs e)
+        {
+            base.OnMouseClick(e);
+            if (e.Button != MouseButtons.Left) return;
+
+            if (_linkBounds.Contains(e.Location))
+            {
+                EventHandler linkHandler = ViewAllClicked;
+                if (linkHandler != null) linkHandler(this, EventArgs.Empty);
+                return;
+            }
+
+            int row = RowAt(e.Y);
+            if (row < 0) return;
+            EventHandler<TriggerRowEventArgs> rowHandler = RowActivated;
+            if (rowHandler != null) rowHandler(this, new TriggerRowEventArgs(_items[row].StockId));
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _titleFont.Dispose();
+                _hintFont.Dispose();
+                _linkFont.Dispose();
+                _timeFont.Dispose();
+                _nameFont.Dispose();
+                _changeFont.Dispose();
+                _priceFont.Dispose();
+                _badgeFont.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+
     public class BufferedDataGridView : DataGridView
     {
         public BufferedDataGridView()

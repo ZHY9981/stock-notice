@@ -53,6 +53,7 @@ namespace StockNotice
         private readonly RuleEngine _ruleEngine;
         private readonly object _sync = new object();
         private readonly Dictionary<string, Quote> _quotes;
+        private readonly Dictionary<string, Quote> _indexQuotes;
         private readonly Dictionary<string, List<Quote>> _quoteHistory;
         private readonly Dictionary<string, StockConfig> _stocksById;
         private readonly QuoteHistoryStore _historyStore;
@@ -84,6 +85,7 @@ namespace StockNotice
             _marketData = marketData;
             _ruleEngine = ruleEngine;
             _quotes = new Dictionary<string, Quote>();
+            _indexQuotes = new Dictionary<string, Quote>();
             _quoteHistory = new Dictionary<string, List<Quote>>();
             _stocksById = new Dictionary<string, StockConfig>();
             _statusMessage = "等待首次检查";
@@ -216,6 +218,60 @@ namespace StockNotice
             }
         }
 
+        // Returns one slot per catalog index (null when that benchmark has not
+        // been fetched yet) so the header can keep a stable 上证/深成/创业板 order.
+        public List<Quote> GetIndexQuotes()
+        {
+            lock (_sync)
+            {
+                List<Quote> result = new List<Quote>();
+                IList<IndexDefinition> definitions = IndexCatalog.All;
+                for (int i = 0; i < definitions.Count; i++)
+                {
+                    Quote quote;
+                    if (_indexQuotes.TryGetValue(definitions[i].Symbol, out quote) && quote != null)
+                    {
+                        result.Add(quote);
+                    }
+                    else
+                    {
+                        result.Add(null);
+                    }
+                }
+                return result;
+            }
+        }
+
+        private void ApplyIndexQuotes(List<Quote> quotes)
+        {
+            if (quotes == null) return;
+
+            for (int i = 0; i < quotes.Count; i++)
+            {
+                Quote quote = quotes[i];
+                if (quote == null || !quote.IsValid) continue;
+
+                IndexDefinition definition = IndexCatalog.Find(quote.Market, quote.Code);
+                if (definition == null) definition = IndexCatalog.FindByCode(quote.Code);
+                if (definition == null) continue;
+
+                _indexQuotes[definition.Symbol] = quote;
+            }
+        }
+
+        private async Task<List<Quote>> SafeGetIndexQuotesAsync()
+        {
+            try
+            {
+                return await _marketData.GetIndexQuotesAsync();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warn("Index quote fetch failed: " + ex.Message);
+                return new List<Quote>();
+            }
+        }
+
         public List<Quote> GetQuoteHistory(string stockId)
         {
             lock (_sync)
@@ -256,6 +312,7 @@ namespace StockNotice
                 _lastFetchAt = MarketClock.Now();
                 _lastAttemptAt = _lastFetchAt;
                 _consecutiveFailures = 0;
+                ApplyIndexQuotes(IndexCatalog.CreateDemoQuotes(_lastFetchAt));
             }
         }
 
@@ -337,10 +394,14 @@ namespace StockNotice
             }
             RaiseSnapshot(true);
 
+            Task<List<Quote>> indexTask = SafeGetIndexQuotesAsync();
+
             if (snapshotStocks.Count == 0)
             {
+                List<Quote> indexQuotes = await indexTask;
                 lock (_sync)
                 {
+                    ApplyIndexQuotes(indexQuotes);
                     _statusMessage = "暂无监控股票";
                     _lastFetchAt = chinaNow;
                     _consecutiveFailures = 0;
@@ -350,6 +411,7 @@ namespace StockNotice
             }
 
             ProviderResult result = await _marketData.GetQuotesAsync(snapshotStocks);
+            List<Quote> fetchedIndexQuotes = await indexTask;
             Dictionary<string, Quote> received = new Dictionary<string, Quote>();
             for (int i = 0; i < result.Quotes.Count; i++)
             {
@@ -366,6 +428,8 @@ namespace StockNotice
 
             lock (_sync)
             {
+                ApplyIndexQuotes(fetchedIndexQuotes);
+
                 foreach (KeyValuePair<string, Quote> pair in received)
                 {
                     _quotes[pair.Key] = pair.Value;

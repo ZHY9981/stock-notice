@@ -24,6 +24,9 @@ namespace StockNotice
         public static readonly Color Header;
         public static readonly Color HeaderMuted;
         public static readonly Color HeaderText;
+        public static readonly Color HeaderLine;
+        public static readonly Color HeaderUp;
+        public static readonly Color HeaderDown;
         public static readonly Color Text;
         public static readonly Color Muted;
         public static readonly Color Border;
@@ -60,6 +63,9 @@ namespace StockNotice
             Header = palette.Header;
             HeaderMuted = palette.HeaderMuted;
             HeaderText = palette.HeaderText;
+            HeaderLine = palette.HeaderLine;
+            HeaderUp = palette.HeaderUp;
+            HeaderDown = palette.HeaderDown;
             Text = palette.Text;
             Muted = palette.Muted;
             Border = palette.Border;
@@ -128,6 +134,9 @@ namespace StockNotice
             public Color Header;
             public Color HeaderMuted;
             public Color HeaderText;
+            public Color HeaderLine;
+            public Color HeaderUp;
+            public Color HeaderDown;
             public Color Text;
             public Color Muted;
             public Color Border;
@@ -155,6 +164,9 @@ namespace StockNotice
             p.Header = Color.FromArgb(17, 24, 39);
             p.HeaderMuted = Color.FromArgb(177, 186, 201);
             p.HeaderText = Color.White;
+            p.HeaderLine = Color.FromArgb(55, 65, 81);
+            p.HeaderUp = Color.FromArgb(255, 122, 122);
+            p.HeaderDown = Color.FromArgb(86, 220, 158);
             p.Text = Color.FromArgb(24, 32, 44);
             p.Muted = Color.FromArgb(102, 112, 133);
             p.Border = Color.FromArgb(227, 232, 239);
@@ -183,6 +195,9 @@ namespace StockNotice
             p.Header = Color.FromArgb(12, 14, 17);
             p.HeaderMuted = Color.FromArgb(140, 148, 160);
             p.HeaderText = Color.FromArgb(236, 239, 243);
+            p.HeaderLine = Color.FromArgb(44, 49, 58);
+            p.HeaderUp = Color.FromArgb(255, 110, 110);
+            p.HeaderDown = Color.FromArgb(80, 225, 160);
             p.Text = Color.FromArgb(226, 230, 236);
             p.Muted = Color.FromArgb(148, 156, 168);
             p.Border = Color.FromArgb(44, 49, 58);
@@ -211,6 +226,9 @@ namespace StockNotice
             p.Header = Color.FromArgb(22, 24, 28);
             p.HeaderMuted = Color.FromArgb(160, 166, 175);
             p.HeaderText = Color.White;
+            p.HeaderLine = Color.FromArgb(52, 58, 68);
+            p.HeaderUp = Color.FromArgb(255, 120, 120);
+            p.HeaderDown = Color.FromArgb(76, 214, 150);
             p.Text = Color.FromArgb(17, 19, 23);
             p.Muted = Color.FromArgb(95, 102, 112);
             p.Border = Color.FromArgb(202, 208, 216);

@@ -101,6 +101,46 @@ namespace StockNotice
                 return new ProviderResult();
             }
 
+            ProviderResult result = await FetchFromProvidersAsync(stocks, "免费公开行情源");
+            LastProviderName = result.ProviderName;
+            LastError = result.Error;
+            return result;
+        }
+
+        // The index strip is supplementary. It follows the same provider order
+        // as the monitored stocks, but never publishes LastProviderName/LastError
+        // so a missing benchmark cannot make a healthy stock feed look broken.
+        public async Task<List<Quote>> GetIndexQuotesAsync()
+        {
+            List<Quote> quotes = new List<Quote>();
+            ProviderResult result = await FetchFromProvidersAsync(
+                IndexCatalog.CreateStocks(),
+                "免费公开指数行情");
+            if (result == null || result.Quotes == null) return quotes;
+
+            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < result.Quotes.Count; i++)
+            {
+                Quote quote = result.Quotes[i];
+                if (quote == null || !quote.IsValid) continue;
+
+                IndexDefinition definition = IndexCatalog.Find(quote.Market, quote.Code);
+                if (definition == null) definition = IndexCatalog.FindByCode(quote.Code);
+                if (definition == null) continue;
+                if (!seen.Add(definition.Symbol)) continue;
+
+                quote.Code = definition.Code;
+                quote.Market = definition.Market;
+                if (string.IsNullOrEmpty(quote.Name)) quote.Name = definition.FullName;
+                quotes.Add(quote);
+            }
+            return quotes;
+        }
+
+        private async Task<ProviderResult> FetchFromProvidersAsync(
+            List<StockConfig> stocks,
+            string fallbackName)
+        {
             List<string> errors = new List<string>();
 
             for (int i = 0; i < _providers.Count; i++)
@@ -111,8 +151,6 @@ namespace StockNotice
                     ProviderResult result = await provider.GetQuotesAsync(stocks);
                     if (HasUsableQuotes(result))
                     {
-                        LastProviderName = result.ProviderName;
-                        LastError = result.Error;
                         return result;
                     }
 
@@ -128,10 +166,8 @@ namespace StockNotice
             }
 
             ProviderResult failed = new ProviderResult();
-            failed.ProviderName = "免费公开行情源";
+            failed.ProviderName = fallbackName;
             failed.Error = string.Join("；", errors.ToArray());
-            LastProviderName = failed.ProviderName;
-            LastError = failed.Error;
             return failed;
         }
 
@@ -416,6 +452,19 @@ namespace StockNotice
                 StockConfig stock;
                 string symbol = InferMarket(code) == MarketNames.Shanghai ? "1." + code : "0." + code;
                 lookup.TryGetValue(symbol, out stock);
+                if (stock == null)
+                {
+                    // Index 000001 belongs to Shanghai while the code alone looks
+                    // like a Shenzhen stock, so fall back to the requested code.
+                    for (int k = 0; k < stocks.Count; k++)
+                    {
+                        if (string.Equals(stocks[k].Code, code, StringComparison.Ordinal))
+                        {
+                            stock = stocks[k];
+                            break;
+                        }
+                    }
+                }
 
                 Quote quote = new Quote();
                 quote.Code = code;

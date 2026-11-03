@@ -42,6 +42,11 @@ namespace StockNotice
         private QuoteSparkline _detailChart;
         private Label _detailBaseLabel;
         private Label _detailUpLabel;
+        private Panel[] _timelineRows;
+        private Label[] _timelineTimes;
+        private Label[] _timelineNames;
+        private Label[] _timelineValues;
+        private Label _timelineEmptyLabel;
         private Label _detailDownLabel;
         private Label _detailResetLabel;
         private Label _detailFreshnessLabel;
@@ -432,7 +437,18 @@ namespace StockNotice
             tableHost.Controls.Add(BuildStockGrid());
             tableHost.Controls.Add(BuildEmptyPanel());
             tableCard.Controls.Add(tableHost);
-            split.Panel1.Controls.Add(tableCard);
+
+            TableLayoutPanel stack = new TableLayoutPanel();
+            stack.Dock = DockStyle.Fill;
+            stack.ColumnCount = 1;
+            stack.RowCount = 2;
+            stack.BackColor = AppResources.Background;
+            stack.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            stack.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(158F)));
+            tableCard.Margin = Padding.Empty;
+            stack.Controls.Add(tableCard, 0, 0);
+            stack.Controls.Add(BuildTimelineCard(), 0, 1);
+            split.Panel1.Controls.Add(stack);
             split.Panel2.Controls.Add(BuildDetailPanel());
 
             split.Resize += delegate
@@ -452,6 +468,104 @@ namespace StockNotice
                 }
             };
             return split;
+        }
+
+        private Control BuildTimelineCard()
+        {
+            RoundedPanel card = new RoundedPanel();
+            card.Dock = DockStyle.Fill;
+            card.BackColor = AppResources.Surface;
+            card.BorderColor = AppResources.Border;
+            card.Margin = AppResources.SPad(0, 8, 0, 0);
+            card.Padding = AppResources.SPad(14, 6, 14, 4);
+
+            TableLayoutPanel layout = new TableLayoutPanel();
+            layout.Dock = DockStyle.Fill;
+            layout.BackColor = AppResources.Surface;
+            layout.ColumnCount = 1;
+            layout.RowCount = 2;
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(24F)));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            card.Controls.Add(layout);
+
+            Label caption = new Label();
+            caption.Text = "今日触发";
+            caption.Dock = DockStyle.Fill;
+            caption.ForeColor = AppResources.Muted;
+            caption.Font = AppResources.Font(8.5F, FontStyle.Bold);
+            caption.TextAlign = ContentAlignment.MiddleLeft;
+            layout.Controls.Add(caption, 0, 0);
+
+            Panel body = new Panel();
+            body.Dock = DockStyle.Fill;
+            body.BackColor = AppResources.Surface;
+            layout.Controls.Add(body, 0, 1);
+
+            _timelineRows = new Panel[3];
+            _timelineTimes = new Label[3];
+            _timelineNames = new Label[3];
+            _timelineValues = new Label[3];
+
+            for (int i = 0; i < _timelineRows.Length; i++)
+            {
+                Panel row = new Panel();
+                row.Dock = DockStyle.Top;
+                row.Height = AppResources.S(34);
+                row.BackColor = AppResources.Surface;
+                row.Cursor = Cursors.Hand;
+                row.Tag = string.Empty;
+                row.Click += TimelineRow_Click;
+
+                Label time = CreateTimelineLabel("--:--", AppResources.Muted, false);
+                time.Location = AppResources.SP(0, 8);
+                time.Size = AppResources.SS(50, 20);
+                time.Tag = i;
+                row.Controls.Add(time);
+
+                Label name = CreateTimelineLabel(string.Empty, AppResources.Text, true);
+                name.Location = AppResources.SP(52, 8);
+                name.Size = AppResources.SS(110, 20);
+                name.Tag = i;
+                row.Controls.Add(name);
+
+                Label value = CreateTimelineLabel(string.Empty, AppResources.Text, true);
+                value.TextAlign = ContentAlignment.MiddleRight;
+                value.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+                value.Location = AppResources.SP(168, 8);
+                value.Size = AppResources.SS(214, 20);
+                value.Tag = i;
+                row.Controls.Add(value);
+
+                _timelineRows[i] = row;
+                _timelineTimes[i] = time;
+                _timelineNames[i] = name;
+                _timelineValues[i] = value;
+                body.Controls.Add(row);
+            }
+
+            _timelineEmptyLabel = new Label();
+            _timelineEmptyLabel.Text = "今天还没有触发记录，达到阈值后会自动出现在这里";
+            _timelineEmptyLabel.Dock = DockStyle.Fill;
+            _timelineEmptyLabel.TextAlign = ContentAlignment.TopLeft;
+            _timelineEmptyLabel.Padding = AppResources.SPad(0, 6, 0, 0);
+            _timelineEmptyLabel.ForeColor = AppResources.Muted;
+            _timelineEmptyLabel.Font = AppResources.Font(8.5F, FontStyle.Regular);
+            body.Controls.Add(_timelineEmptyLabel);
+            _timelineEmptyLabel.BringToFront();
+            return card;
+        }
+
+        private Label CreateTimelineLabel(string text, Color color, bool bold)
+        {
+            Label label = new Label();
+            label.Text = text;
+            label.ForeColor = color;
+            label.Font = AppResources.Font(8.5F, bold ? FontStyle.Bold : FontStyle.Regular);
+            label.AutoSize = false;
+            label.Cursor = Cursors.Hand;
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.Click += TimelineRow_Click;
+            return label;
         }
 
         private Control BuildDetailPanel()
@@ -1134,8 +1248,53 @@ namespace StockNotice
         private void RefreshAll()
         {
             RefreshStockGrid();
+            RefreshTimeline();
             RefreshHistoryGrid();
             RefreshStats();
+        }
+
+        private void RefreshTimeline()
+        {
+            if (_timelineRows == null) return;
+
+            DateTime today = MarketClock.Now().Date;
+            int shown = 0;
+            for (int i = 0; i < _state.History.Count && shown < _timelineRows.Length; i++)
+            {
+                TriggerRecord item = _state.History[i];
+                if (item.TriggeredAt.Date != today) continue;
+
+                _timelineTimes[shown].Text = item.TriggeredAt.ToString("HH:mm");
+                _timelineNames[shown].Text = item.StockName;
+                _timelineValues[shown].Text = AppResources.DirectionText(item.Direction)
+                    + " " + AppResources.FormatPercent(item.ChangePercent) + "%";
+                _timelineValues[shown].ForeColor = item.Direction == "up"
+                    ? AppResources.Up
+                    : AppResources.Down;
+                _timelineRows[shown].Tag = item.StockId;
+                _timelineRows[shown].Visible = true;
+                shown++;
+            }
+
+            for (int i = shown; i < _timelineRows.Length; i++)
+            {
+                _timelineRows[i].Visible = false;
+            }
+            _timelineEmptyLabel.Visible = shown == 0;
+        }
+
+        private void TimelineRow_Click(object sender, EventArgs e)
+        {
+            Control control = sender as Control;
+            if (control == null) return;
+
+            int index = control is Label
+                ? Convert.ToInt32(control.Tag)
+                : Array.IndexOf(_timelineRows, control);
+            if (index < 0 || index >= _timelineRows.Length) return;
+
+            string stockId = Convert.ToString(_timelineRows[index].Tag);
+            if (!string.IsNullOrEmpty(stockId)) SelectStock(stockId);
         }
 
         private void RefreshStockGrid()
