@@ -83,6 +83,7 @@ stock-notice/
   build.ps1            用 Windows 自带 C# 编译器构建
   run.cmd              构建并启动
   run-demo.cmd         用演示数据启动（不联网）
+  concepts/            界面设计稿与当前界面截图
 ```
 
 图标已经嵌进 `StockNotice.exe`，所以桌面快捷方式、任务栏和窗口标题栏显示的是
@@ -114,6 +115,25 @@ run-demo.cmd --theme=ink                  :: 配合演示数据预览
 
 要微调某个主题，只改 `AppResources.cs` 里对应调色板中的颜色值即可，全部界面
 （主窗口、设置、编辑对话框、托盘图标）会一起变化。
+
+## 界面预览
+
+以下截图来自 `run-demo.cmd` 的演示数据，不是真实持仓或实时行情。
+
+**宽屏完整布局（1360×840）**
+
+![宽屏完整布局](concepts/main-ui-current-wide.png)
+
+**最小窗口（1180×760），顶栏自动收起行情时间**
+
+![最小窗口](concepts/main-ui-current-compact.png)
+
+**监控表滚动后，卡片头与列标题保持固定**
+
+![滚动后表头固定](concepts/main-ui-current-scrolled.png)
+
+更多状态：[ink 深色主题](concepts/main-ui-current-ink.png)、
+[今日无触发空状态](concepts/main-ui-current-empty.png)。
 
 ## 构建与运行
 

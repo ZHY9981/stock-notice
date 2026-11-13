@@ -10,13 +10,13 @@ Windows 桌面 A 股涨跌提醒：交易时段每 5 秒轮询一次，涨跌幅
 ## Git
 
 - 分支：`main`，远端 `origin`（GitHub `ZHY9981/stock-notice`）
-- `4c5a8dd test: 补充指数链路检查并更新界面说明`：当前最新提交
+- `4c5a8dd test: 补充指数链路检查并更新界面说明`
 - `bb8fe3d feat: 整合顶栏指数条、固定表头与触发时间线`：本轮界面整合
 - `58a2b15 test: 把 IndexCatalog 加入离线测试编译列表`
 - `9f859b5 feat: 指标并入顶栏，移除独立指标条`：顶栏内联指标的第一版
 - `d9c89bf feat: 列表下方增加今日触发时间线`：时间线第一版，同时纳入了指数目录
   和指数行情拉取的底层文件
-- 以上提交均在本地 `main`；`bb8fe3d`、`4c5a8dd` 尚未推送，工作区干净
+- 以上提交及本次截图归档都在本地 `main`，尚未推送；最新提交见 `git log -1`
 - 未经用户明确要求，不要提交、推送或重写历史
 
 ## 本轮改动（2026-11-04 完成，11-13 提交）
@@ -44,19 +44,20 @@ Windows 桌面 A 股涨跌提醒：交易时段每 5 秒轮询一次，涨跌幅
 - `build.ps1` 构建成功（`build\StockNotice.exe`，已自动签名）
 - `tools\run-tests.ps1`：**120 项全部通过**
 - 桌面截图（演示数据，12 只股票 + 3 条今日触发）：
-  - `build\ui-preview\wide.png`：宽屏完整布局
-  - `build\ui-preview\scrolled.png`：列表滚动后列标题仍固定
-  - `build\ui-preview\compact.png`：1180×760 最小窗口，顶栏自动收紧
-  - `build\ui-preview-empty\wide.png`：今日无触发的空状态
-  - `build\ui-preview-ink\wide.png`：ink 深色主题
+  - `concepts\main-ui-current-wide.png`：宽屏完整布局
+  - `concepts\main-ui-current-scrolled.png`：列表滚动后列标题仍固定
+  - `concepts\main-ui-current-compact.png`：1180×760 最小窗口，顶栏自动收紧
+  - `concepts\main-ui-current-empty.png`：今日无触发的空状态
+  - `concepts\main-ui-current-ink.png`：ink 深色主题
 - 交互实测：点击时间线第二行后表格选中和右侧详情都切到紫金矿业；
   点击「查看全部」跳到触发记录页
 - 指数缺失时显示 `--`，不影响股票行情状态
-- **联网抽查未完成**：2026-11-13 再次运行 `check-marketdata.ps1 600519` 和
-  `000001`，AKShare / 东方财富 / 腾讯仍全部报“发送请求时出错”，三只指数返回 0 条。
-  诊断结果：TCP 443 可连接，但 TLS 握手失败（Schannel `SEC_E_NO_CREDENTIALS`），
-  `curl.exe` 和 `Invoke-WebRequest` 同样失败，判定为当前 DSH 沙箱环境限制，
-  不是程序代码异常。需要在正常桌面会话/有 TLS 凭证的环境下复测。
+- **联网抽查通过（2026-11-13）**：以完整访问权限运行
+  `check-marketdata.ps1 600519` 和 `000001`，两次都返回有效个股 + 3 只指数：
+  贵州茅台 1435.26（+1.77%）、平安银行 12.07（+2.37%）；
+  上证 3634.35（-0.59%）、深成 10968.79（-2.05%）、创业板 2426.08（-3.32%）。
+  说明：DSH 默认沙箱令牌无法完成 Schannel TLS 握手，联网检查需要完整访问权限，
+  正常桌面环境不受此限制。
 
 ## 用户数据
 
@@ -64,7 +65,8 @@ Windows 桌面 A 股涨跌提醒：交易时段每 5 秒轮询一次，涨跌幅
 - 日志：`build\logs\stock-notice-YYYYMMDD.log`
 - 当前监控 4 只：中国船舶、恒瑞医药、万马股份、紫金矿业
 - 数据目录不可写时回退到 `%LocalAppData%\StockNotice\`
-- 界面截图使用 `build\ui-preview*\` 下的临时副本，没有改动用户数据
+- 界面截图使用 `build\ui-preview*\` 下的临时副本，归档副本为
+  `concepts\main-ui-current-*.png`，没有改动用户数据
 
 不要重置、覆盖或删除这些用户数据。
 
@@ -77,16 +79,14 @@ Windows 桌面 A 股涨跌提醒：交易时段每 5 秒轮询一次，涨跌幅
 - 交易日历覆盖到 2026-12-31，之后会退化为「周一到周五都算交易日」
 - 系统通知可能被专注助手拦截；程序已有托盘文案和窗口横幅兜底，但未人工验收
 - 通知上限固定为同一档位 3 次，未做成可配置
-- 指数联网链路尚未在真实网络/TLS 正常的环境下验收（当前沙箱 Schannel 无法建连）
-- 本轮两个提交尚未推送
 
 ## 下一步（按优先级）
 
-1. 有网络时实测三只指数和沪深各一只股票，确认指数链路和超时降级
-2. 评估指数条是否可配置（显示/隐藏、选择指数）
-3. 在今日触发时间线标记被冷却或免打扰抑制的记录
-4. 评估通知次数上限是否可配置
-5. 收盘后指数条是否显示「收盘」或在收盘后冻结（当前保留最后值）
+1. 评估指数条是否可配置（显示/隐藏、选择指数）
+2. 在今日触发时间线标记被冷却或免打扰抑制的记录
+3. 评估通知次数上限是否可配置
+4. 收盘后指数条是否显示「收盘」或在收盘后冻结（当前保留最后值）
+5. 给指数条增加行情年龄或陈旧标识
 
 ## 接手提示词
 
@@ -94,8 +94,8 @@ Windows 桌面 A 股涨跌提醒：交易时段每 5 秒轮询一次，涨跌幅
 你接手 D:\codex work\stock-notice 的 Stock Notice 项目。先读 AGENTS.md 和
 PROJECT_STATUS.md，再执行 git status、git log -5，确认工作区干净。
 
-main 上最新是 4c5a8dd（顶栏指数条、固定表头、触发时间线整合）。
-bb8fe3d、4c5a8dd 尚未推送，不要重置历史，不要直接改 build\data\state.json
-里的用户数据。改动前先确认目标，改完必须跑 build.ps1 和 tools\run-tests.ps1，
-界面改动要截图验收，提交前征得用户同意。
+main 上包含 4c5a8dd（顶栏指数条、固定表头、触发时间线整合）及其后的
+测试/截图归档提交，推送状态以 git status 为准。不要重置历史，不要直接改
+build\data\state.json 里的用户数据。改动前先确认目标，改完必须跑 build.ps1
+和 tools\run-tests.ps1，界面改动要截图验收，提交前征得用户同意。
 ```
