@@ -392,8 +392,8 @@ namespace StockNotice
             BackColor = AppResources.Header;
             _quotes = new List<Quote>();
             _nameFont = AppResources.Font(8F, FontStyle.Regular);
-            _valueFont = AppResources.Font(11.5F, FontStyle.Bold);
-            _changeFont = AppResources.Font(10F, FontStyle.Bold);
+            _valueFont = AppResources.Font(11F, FontStyle.Bold);
+            _changeFont = AppResources.Font(9.5F, FontStyle.Bold);
         }
 
         public void SetQuotes(IList<Quote> quotes)
@@ -426,13 +426,45 @@ namespace StockNotice
 
             int left = AppResources.S(18);
             int top = Math.Max(0, (Height - AppResources.S(30)) / 2);
-            int slotWidth = Math.Max(AppResources.S(78), (Width - left) / 3);
+            int available = Math.Max(0, Width - left - AppResources.S(8));
+            int gap = AppResources.S(18);
+            int count = Math.Min(_quotes.Count, IndexCatalog.All.Count);
 
-            for (int i = 0; i < _quotes.Count && i < IndexCatalog.All.Count; i++)
+            int[] widths = new int[count];
+            int total = 0;
+            for (int i = 0; i < count; i++)
             {
                 IndexDefinition definition = IndexCatalog.All[i];
                 Quote quote = _quotes[i];
-                int x = left + i * slotWidth;
+                string value = quote != null && quote.IsValid
+                    ? AppResources.FormatPrice(quote.Price)
+                    : "--";
+                int nameWidth = MeasureText(e.Graphics, definition.DisplayName, _nameFont);
+                int valueWidth = MeasureText(e.Graphics, value, _valueFont);
+                int changeWidth = quote != null && quote.IsValid
+                    ? MeasureText(e.Graphics, AppResources.FormatPercent(quote.ChangePercent), _changeFont)
+                    : 0;
+                int contentWidth = valueWidth + (changeWidth > 0 ? AppResources.S(7) + changeWidth : 0);
+                widths[i] = Math.Max(nameWidth, contentWidth);
+                total += widths[i] + (i > 0 ? gap : 0);
+            }
+
+            if (total > available && count > 0)
+            {
+                gap = AppResources.S(8);
+                total = 0;
+                for (int i = 0; i < count; i++) total += widths[i] + (i > 0 ? gap : 0);
+            }
+
+            int x = total <= available
+                ? left
+                : left + (available - total) / 2;
+            if (x < left) x = left;
+
+            for (int i = 0; i < count; i++)
+            {
+                IndexDefinition definition = IndexCatalog.All[i];
+                Quote quote = _quotes[i];
 
                 TextRenderer.DrawText(
                     e.Graphics,
@@ -453,25 +485,33 @@ namespace StockNotice
                     AppResources.HeaderText,
                     TextFormatFlags.NoPadding);
 
-                if (quote == null || !quote.IsValid) continue;
+                if (quote != null && quote.IsValid)
+                {
+                    int valueWidth = MeasureText(e.Graphics, value, _valueFont);
+                    Color changeColor = quote.ChangePercent > 0m
+                        ? AppResources.HeaderUp
+                        : (quote.ChangePercent < 0m ? AppResources.HeaderDown : AppResources.HeaderMuted);
+                    TextRenderer.DrawText(
+                        e.Graphics,
+                        AppResources.FormatPercent(quote.ChangePercent),
+                        _changeFont,
+                        new Point(x + valueWidth + AppResources.S(7), top + AppResources.S(16)),
+                        changeColor,
+                        TextFormatFlags.NoPadding);
+                }
 
-                int valueWidth = TextRenderer.MeasureText(
-                    e.Graphics,
-                    value,
-                    _valueFont,
-                    new Size(int.MaxValue, int.MaxValue),
-                    TextFormatFlags.NoPadding).Width;
-                Color changeColor = quote.ChangePercent > 0m
-                    ? AppResources.HeaderUp
-                    : (quote.ChangePercent < 0m ? AppResources.HeaderDown : AppResources.HeaderMuted);
-                TextRenderer.DrawText(
-                    e.Graphics,
-                    AppResources.FormatPercent(quote.ChangePercent),
-                    _changeFont,
-                    new Point(x + valueWidth + AppResources.S(5), top + AppResources.S(16)),
-                    changeColor,
-                    TextFormatFlags.NoPadding);
+                x += widths[i] + gap;
             }
+        }
+
+        private static int MeasureText(Graphics graphics, string text, Font font)
+        {
+            return TextRenderer.MeasureText(
+                graphics,
+                text,
+                font,
+                new Size(int.MaxValue, int.MaxValue),
+                TextFormatFlags.NoPadding).Width;
         }
 
         protected override void Dispose(bool disposing)

@@ -25,8 +25,10 @@ namespace StockNotice
         private Label _stockCountLabel;
         private Label _triggerCountLabel;
         private Label _updateLabel;
+        private Control _updateMetric;
         private Label _providerLabel;
-        private Label _healthLabel;
+        private HeaderIndexStrip _indexStrip;
+        private Label _stockListTitleLabel;
         private StatusPill _sessionLabel;
         private StatusPill _headerHealthPill;
         private Label _sessionHintLabel;
@@ -42,11 +44,7 @@ namespace StockNotice
         private QuoteSparkline _detailChart;
         private Label _detailBaseLabel;
         private Label _detailUpLabel;
-        private Panel[] _timelineRows;
-        private Label[] _timelineTimes;
-        private Label[] _timelineNames;
-        private Label[] _timelineValues;
-        private Label _timelineEmptyLabel;
+        private TriggerTimeline _timeline;
         private Label _detailDownLabel;
         private Label _detailResetLabel;
         private Label _detailFreshnessLabel;
@@ -59,6 +57,7 @@ namespace StockNotice
         private Timer _uiTimer;
         private bool _allowExit;
         private bool _trayHintShown;
+        private bool _headerCompact;
         private string _pendingNotificationStockId;
         private bool _pendingSummaryView;
         private string _alertBannerText;
@@ -108,6 +107,7 @@ namespace StockNotice
             _monitor.TriggerRaised += Monitor_TriggerRaised;
             _monitor.SnapshotUpdated += Monitor_SnapshotUpdated;
             _monitor.DailySummaryRaised += Monitor_DailySummaryRaised;
+            _monitor.IndexQuotesUpdated += Monitor_IndexQuotesUpdated;
 
             _uiTimer = new Timer();
             _uiTimer.Interval = 1000;
@@ -123,6 +123,7 @@ namespace StockNotice
             {
                 ShowAlertBanner(_startupCheck.Summary, 12);
             }
+            UpdateHeaderDensity();
             RefreshAll();
         }
 
@@ -149,13 +150,34 @@ namespace StockNotice
             Panel header = new Panel();
             header.Dock = DockStyle.Fill;
             header.BackColor = AppResources.Header;
-            header.Padding = AppResources.SPad(22, 0, 20, 0);
+            header.Padding = AppResources.SPad(20, 0, 20, 0);
+
+            TableLayoutPanel bar = new TableLayoutPanel();
+            bar.Dock = DockStyle.Fill;
+            bar.BackColor = AppResources.Header;
+            bar.ColumnCount = 5;
+            bar.RowCount = 1;
+            bar.Margin = Padding.Empty;
+            bar.Padding = Padding.Empty;
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, AppResources.SF(390F)));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            bar.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            header.Controls.Add(bar);
+
+            Panel brand = new Panel();
+            brand.BackColor = AppResources.Header;
+            brand.Anchor = AnchorStyles.Left;
+            brand.Margin = Padding.Empty;
+            brand.Size = AppResources.SS(200, 64);
 
             RoundedPanel logo = new RoundedPanel();
             logo.DrawBorder = false;
             logo.CornerRadius = AppResources.S(17);
             logo.BackColor = AppResources.HeaderText;
-            logo.Location = AppResources.SP(22, 15);
+            logo.Location = AppResources.SP(0, 15);
             logo.Size = AppResources.SS(34, 34);
             Label logoText = new Label();
             logoText.Text = "A";
@@ -164,35 +186,66 @@ namespace StockNotice
             logoText.ForeColor = AppResources.Header;
             logoText.Font = AppResources.Font(12F, FontStyle.Bold);
             logo.Controls.Add(logoText);
-            header.Controls.Add(logo);
+            brand.Controls.Add(logo);
 
             Label title = new Label();
             title.Text = "A股涨跌提醒";
             title.ForeColor = AppResources.HeaderText;
             title.Font = AppResources.Font(17F, FontStyle.Bold);
             title.AutoSize = true;
-            title.Location = AppResources.SP(68, 9);
-            header.Controls.Add(title);
+            title.Location = AppResources.SP(45, 9);
+            brand.Controls.Add(title);
 
             Label subtitle = new Label();
-            subtitle.Text = "每 5 秒检查行情 · 本地隐私优先";
+            subtitle.Text = "每 5 秒检查行情 · 本地优先";
             subtitle.ForeColor = AppResources.HeaderMuted;
             subtitle.Font = AppResources.Font(8F, FontStyle.Regular);
             subtitle.AutoSize = true;
-            subtitle.Location = AppResources.SP(70, 35);
-            header.Controls.Add(subtitle);
+            subtitle.Location = AppResources.SP(47, 35);
+            brand.Controls.Add(subtitle);
+            bar.Controls.Add(brand, 0, 0);
 
-            header.Controls.Add(CreateHeaderMetric("监控", out _stockCountLabel, 58, 316));
-            header.Controls.Add(CreateHeaderMetric("今日触发", out _triggerCountLabel, 78, 384));
-            header.Controls.Add(CreateHeaderMetric("行情时间", out _updateLabel, 96, 472));
-            header.Controls.Add(CreateHeaderMetric("状态", out _healthLabel, 140, 578));
+            FlowLayoutPanel metrics = new FlowLayoutPanel();
+            metrics.AutoSize = true;
+            metrics.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            metrics.WrapContents = false;
+            metrics.FlowDirection = FlowDirection.LeftToRight;
+            metrics.BackColor = AppResources.Header;
+            metrics.Anchor = AnchorStyles.Left;
+            metrics.Margin = Padding.Empty;
+            metrics.Controls.Add(CreateHeaderMetric("监控股票", out _stockCountLabel, true));
+            metrics.Controls.Add(CreateHeaderMetric("今日触发", out _triggerCountLabel, true));
+            _updateMetric = CreateHeaderMetric("行情时间", out _updateLabel, false);
+            metrics.Controls.Add(_updateMetric);
+            bar.Controls.Add(metrics, 1, 0);
 
-            _sessionLabel = new StatusPill();
-            _sessionLabel.Text = "交易中 · --:--:--";
-            _sessionLabel.PillColor = Color.FromArgb(30, 77, 61);
-            _sessionLabel.ForeColor = Color.FromArgb(126, 240, 184);
-            _sessionLabel.Location = AppResources.SP(736, 21);
-            header.Controls.Add(_sessionLabel);
+            _indexStrip = new HeaderIndexStrip();
+            _indexStrip.Anchor = AnchorStyles.Left;
+            _indexStrip.Margin = Padding.Empty;
+            _indexStrip.Size = AppResources.SS(390, 44);
+            bar.Controls.Add(_indexStrip, 2, 0);
+
+            FlowLayoutPanel right = new FlowLayoutPanel();
+            right.AutoSize = true;
+            right.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            right.WrapContents = false;
+            right.FlowDirection = FlowDirection.RightToLeft;
+            right.BackColor = AppResources.Header;
+            right.Anchor = AnchorStyles.Right;
+            right.Margin = Padding.Empty;
+
+            Button settings = CreateHeaderButton(string.Empty, 34, 34, AppGlyph.Settings);
+            settings.Name = "settingsButton";
+            settings.AccessibleName = "设置";
+            settings.Margin = Padding.Empty;
+            _toolTip.SetToolTip(settings, "打开运行设置");
+            settings.Click += SettingsButton_Click;
+            right.Controls.Add(settings);
+
+            _monitorButton = CreateHeaderButton("暂停监控", 112, 34, AppGlyph.Pause);
+            _monitorButton.Margin = AppResources.SPad(0, 0, 8, 0);
+            _monitorButton.Click += MonitorButton_Click;
+            right.Controls.Add(_monitorButton);
 
             _headerHealthPill = new StatusPill();
             _headerHealthPill.Text = "等待行情";
@@ -200,55 +253,47 @@ namespace StockNotice
             _headerHealthPill.ForeColor = AppResources.HeaderMuted;
             _headerHealthPill.DrawPillBorder = true;
             _headerHealthPill.PillBorderColor = Color.FromArgb(55, 65, 81);
-            _headerHealthPill.Visible = false;
+            _headerHealthPill.Margin = AppResources.SPad(0, 5, 8, 0);
+            right.Controls.Add(_headerHealthPill);
 
-            FlowLayoutPanel right = new FlowLayoutPanel();
-            right.Dock = DockStyle.Right;
-            right.FlowDirection = FlowDirection.LeftToRight;
-            right.WrapContents = false;
-            right.AutoSize = true;
-            right.Padding = AppResources.SPad(0, 15, 0, 0);
+            _sessionLabel = new StatusPill();
+            _sessionLabel.Text = "交易中 · --:--:--";
+            _sessionLabel.PillColor = Color.FromArgb(30, 77, 61);
+            _sessionLabel.ForeColor = Color.FromArgb(126, 240, 184);
+            _sessionLabel.Margin = AppResources.SPad(0, 5, 16, 0);
+            right.Controls.Add(_sessionLabel);
 
-            _monitorButton = CreateHeaderButton("暂停监控", 112, 34, AppGlyph.Pause);
-            _monitorButton.Click += MonitorButton_Click;
-            right.Controls.Add(_monitorButton);
-
-            Button settings = CreateHeaderButton(string.Empty, 34, 34, AppGlyph.Settings);
-            settings.Name = "settingsButton";
-            settings.AccessibleName = "设置";
-            _toolTip.SetToolTip(settings, "打开运行设置");
-            settings.Click += SettingsButton_Click;
-            right.Controls.Add(settings);
-
-            header.Controls.Add(right);
+            bar.Controls.Add(right, 4, 0);
             return header;
         }
 
-        private Panel CreateHeaderMetric(string caption, out Label valueLabel, int width, int left)
+        private Control CreateHeaderMetric(string caption, out Label valueLabel, bool divider)
         {
-            Panel block = new Panel();
-            block.Width = AppResources.S(width);
-            block.Height = AppResources.S(42);
-            block.Location = AppResources.SP(left, 11);
+            TableLayoutPanel block = new TableLayoutPanel();
+            block.ColumnCount = 1;
+            block.RowCount = 2;
+            block.AutoSize = true;
+            block.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             block.BackColor = AppResources.Header;
+            block.Margin = AppResources.SPad(0, 0, divider ? 22 : 0, 0);
+            block.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            block.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            valueLabel = new Label();
+            valueLabel.Text = "--";
+            valueLabel.AutoSize = true;
+            valueLabel.ForeColor = AppResources.HeaderText;
+            valueLabel.Font = AppResources.Font(13F, FontStyle.Bold);
+            valueLabel.Margin = Padding.Empty;
+            block.Controls.Add(valueLabel, 0, 0);
 
             Label captionLabel = new Label();
             captionLabel.Text = caption;
             captionLabel.ForeColor = AppResources.HeaderMuted;
-            captionLabel.Font = AppResources.Font(7.5F, FontStyle.Regular);
+            captionLabel.Font = AppResources.Font(8F, FontStyle.Regular);
             captionLabel.AutoSize = true;
-            captionLabel.Location = AppResources.SP(0, 1);
-            block.Controls.Add(captionLabel);
-
-            valueLabel = new Label();
-            valueLabel.Text = "--";
-            valueLabel.ForeColor = AppResources.HeaderText;
-            valueLabel.Font = AppResources.Font(10F, FontStyle.Bold);
-            valueLabel.AutoSize = false;
-            valueLabel.AutoEllipsis = true;
-            valueLabel.Location = AppResources.SP(0, 17);
-            valueLabel.Size = AppResources.SS(width, 22);
-            block.Controls.Add(valueLabel);
+            captionLabel.Margin = AppResources.SPad(0, 1, 0, 0);
+            block.Controls.Add(captionLabel, 0, 1);
             return block;
         }
 
@@ -297,86 +342,6 @@ namespace StockNotice
             toolbar.Controls.Add(hint);
 
             return toolbar;
-        }
-
-        private Control BuildStatsStrip()
-        {
-            Panel host = new Panel();
-            host.Dock = DockStyle.Fill;
-            host.BackColor = AppResources.Background;
-            host.Padding = AppResources.SPad(22, 6, 22, 8);
-
-            RoundedPanel card = new RoundedPanel();
-            card.Dock = DockStyle.Fill;
-            card.BackColor = AppResources.Surface;
-            card.BorderColor = AppResources.Border;
-            host.Controls.Add(card);
-
-            TableLayoutPanel stats = new TableLayoutPanel();
-            stats.Dock = DockStyle.Fill;
-            stats.ColumnCount = 5;
-            stats.RowCount = 1;
-            stats.BackColor = AppResources.Surface;
-            stats.Padding = Padding.Empty;
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            stats.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-            stats.Controls.Add(CreateStatBlock("监控股票", out _stockCountLabel, true), 0, 0);
-            stats.Controls.Add(CreateStatBlock("今日触发", out _triggerCountLabel, true), 1, 0);
-            stats.Controls.Add(CreateStatBlock("行情更新时间", out _updateLabel, true), 2, 0);
-            stats.Controls.Add(CreateStatBlock("数据状态", out _healthLabel, true), 3, 0);
-            stats.Controls.Add(CreateStatBlock("行情来源", out _providerLabel, false), 4, 0);
-            card.Controls.Add(stats);
-            return host;
-        }
-
-        private Control CreateStatBlock(string caption, out Label valueLabel, bool showDivider)
-        {
-            Panel block = new Panel();
-            block.Dock = DockStyle.Fill;
-            block.Margin = Padding.Empty;
-            block.BackColor = AppResources.Surface;
-            block.Padding = AppResources.SPad(14, 6, 14, 5);
-            if (showDivider)
-            {
-                block.Paint += delegate(object sender, PaintEventArgs e)
-                {
-                    using (Pen pen = new Pen(AppResources.Border))
-                    {
-                        e.Graphics.DrawLine(
-                            pen,
-                            block.Width - 1,
-                            AppResources.S(8),
-                            block.Width - 1,
-                            block.Height - AppResources.S(8));
-                    }
-                };
-            }
-
-            Label captionLabel = new Label();
-            captionLabel.Text = caption;
-            captionLabel.ForeColor = AppResources.Muted;
-            captionLabel.Font = AppResources.Font(8F, FontStyle.Regular);
-            captionLabel.AutoSize = true;
-            captionLabel.Location = AppResources.SP(14, 6);
-            block.Controls.Add(captionLabel);
-
-            valueLabel = new Label();
-            valueLabel.Text = "--";
-            valueLabel.ForeColor = AppResources.Text;
-            valueLabel.Font = AppResources.Font(10.5F, FontStyle.Bold);
-            valueLabel.AutoEllipsis = true;
-            valueLabel.AutoSize = false;
-            valueLabel.Height = AppResources.S(22);
-            valueLabel.Dock = DockStyle.Bottom;
-            block.Controls.Add(valueLabel);
-            valueLabel.BringToFront();
-
-            return block;
         }
 
         private Control BuildContent()
@@ -431,12 +396,23 @@ namespace StockNotice
             tableCard.BackColor = AppResources.Surface;
             tableCard.Padding = new Padding(1);
 
+            TableLayoutPanel tableLayout = new TableLayoutPanel();
+            tableLayout.Dock = DockStyle.Fill;
+            tableLayout.ColumnCount = 1;
+            tableLayout.RowCount = 2;
+            tableLayout.BackColor = AppResources.Surface;
+            tableLayout.Margin = Padding.Empty;
+            tableLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(34F)));
+            tableLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            tableLayout.Controls.Add(BuildStockCardHead(), 0, 0);
+            tableCard.Controls.Add(tableLayout);
+
             Panel tableHost = new Panel();
             tableHost.Dock = DockStyle.Fill;
             tableHost.BackColor = AppResources.Surface;
             tableHost.Controls.Add(BuildStockGrid());
             tableHost.Controls.Add(BuildEmptyPanel());
-            tableCard.Controls.Add(tableHost);
+            tableLayout.Controls.Add(tableHost, 0, 1);
 
             TableLayoutPanel stack = new TableLayoutPanel();
             stack.Dock = DockStyle.Fill;
@@ -444,7 +420,7 @@ namespace StockNotice
             stack.RowCount = 2;
             stack.BackColor = AppResources.Background;
             stack.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            stack.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(158F)));
+            stack.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(168F)));
             tableCard.Margin = Padding.Empty;
             stack.Controls.Add(tableCard, 0, 0);
             stack.Controls.Add(BuildTimelineCard(), 0, 1);
@@ -477,95 +453,75 @@ namespace StockNotice
             card.BackColor = AppResources.Surface;
             card.BorderColor = AppResources.Border;
             card.Margin = AppResources.SPad(0, 8, 0, 0);
-            card.Padding = AppResources.SPad(14, 6, 14, 4);
+            card.Padding = new Padding(1);
 
-            TableLayoutPanel layout = new TableLayoutPanel();
-            layout.Dock = DockStyle.Fill;
-            layout.BackColor = AppResources.Surface;
-            layout.ColumnCount = 1;
-            layout.RowCount = 2;
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, AppResources.SF(24F)));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            card.Controls.Add(layout);
-
-            Label caption = new Label();
-            caption.Text = "今日触发";
-            caption.Dock = DockStyle.Fill;
-            caption.ForeColor = AppResources.Muted;
-            caption.Font = AppResources.Font(8.5F, FontStyle.Bold);
-            caption.TextAlign = ContentAlignment.MiddleLeft;
-            layout.Controls.Add(caption, 0, 0);
-
-            Panel body = new Panel();
-            body.Dock = DockStyle.Fill;
-            body.BackColor = AppResources.Surface;
-            layout.Controls.Add(body, 0, 1);
-
-            _timelineRows = new Panel[3];
-            _timelineTimes = new Label[3];
-            _timelineNames = new Label[3];
-            _timelineValues = new Label[3];
-
-            for (int i = 0; i < _timelineRows.Length; i++)
+            _timeline = new TriggerTimeline();
+            _timeline.Dock = DockStyle.Fill;
+            _timeline.RowActivated += delegate(object sender, TriggerRowEventArgs e)
             {
-                Panel row = new Panel();
-                row.Dock = DockStyle.Top;
-                row.Height = AppResources.S(34);
-                row.BackColor = AppResources.Surface;
-                row.Cursor = Cursors.Hand;
-                row.Tag = string.Empty;
-                row.Click += TimelineRow_Click;
-
-                Label time = CreateTimelineLabel("--:--", AppResources.Muted, false);
-                time.Location = AppResources.SP(0, 8);
-                time.Size = AppResources.SS(50, 20);
-                time.Tag = i;
-                row.Controls.Add(time);
-
-                Label name = CreateTimelineLabel(string.Empty, AppResources.Text, true);
-                name.Location = AppResources.SP(52, 8);
-                name.Size = AppResources.SS(110, 20);
-                name.Tag = i;
-                row.Controls.Add(name);
-
-                Label value = CreateTimelineLabel(string.Empty, AppResources.Text, true);
-                value.TextAlign = ContentAlignment.MiddleRight;
-                value.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                value.Location = AppResources.SP(168, 8);
-                value.Size = AppResources.SS(214, 20);
-                value.Tag = i;
-                row.Controls.Add(value);
-
-                _timelineRows[i] = row;
-                _timelineTimes[i] = time;
-                _timelineNames[i] = name;
-                _timelineValues[i] = value;
-                body.Controls.Add(row);
-            }
-
-            _timelineEmptyLabel = new Label();
-            _timelineEmptyLabel.Text = "今天还没有触发记录，达到阈值后会自动出现在这里";
-            _timelineEmptyLabel.Dock = DockStyle.Fill;
-            _timelineEmptyLabel.TextAlign = ContentAlignment.TopLeft;
-            _timelineEmptyLabel.Padding = AppResources.SPad(0, 6, 0, 0);
-            _timelineEmptyLabel.ForeColor = AppResources.Muted;
-            _timelineEmptyLabel.Font = AppResources.Font(8.5F, FontStyle.Regular);
-            body.Controls.Add(_timelineEmptyLabel);
-            _timelineEmptyLabel.BringToFront();
+                SelectStock(e.StockId);
+            };
+            _timeline.ViewAllClicked += delegate
+            {
+                if (_tabs != null) _tabs.SelectedIndex = 1;
+            };
+            card.Controls.Add(_timeline);
             return card;
         }
 
-        private Label CreateTimelineLabel(string text, Color color, bool bold)
+        private Control BuildStockCardHead()
         {
-            Label label = new Label();
-            label.Text = text;
-            label.ForeColor = color;
-            label.Font = AppResources.Font(8.5F, bold ? FontStyle.Bold : FontStyle.Regular);
-            label.AutoSize = false;
-            label.Cursor = Cursors.Hand;
-            label.TextAlign = ContentAlignment.MiddleLeft;
-            label.Click += TimelineRow_Click;
-            return label;
+            Panel head = new Panel();
+            head.Dock = DockStyle.Fill;
+            head.BackColor = AppResources.Surface;
+            head.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                using (Pen line = new Pen(AppResources.Border))
+                {
+                    e.Graphics.DrawLine(line, 0, head.Height - 1, head.Width, head.Height - 1);
+                }
+            };
+
+            TableLayoutPanel row = new TableLayoutPanel();
+            row.Dock = DockStyle.Fill;
+            row.ColumnCount = 3;
+            row.RowCount = 1;
+            row.BackColor = AppResources.Surface;
+            row.Margin = Padding.Empty;
+            row.Padding = AppResources.SPad(14, 0, 12, 0);
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            row.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            head.Controls.Add(row);
+
+            _stockListTitleLabel = new Label();
+            _stockListTitleLabel.Text = "自选 0 只";
+            _stockListTitleLabel.AutoSize = true;
+            _stockListTitleLabel.Anchor = AnchorStyles.Left;
+            _stockListTitleLabel.ForeColor = AppResources.Text;
+            _stockListTitleLabel.Font = AppResources.Font(9F, FontStyle.Bold);
+            _stockListTitleLabel.Margin = Padding.Empty;
+            row.Controls.Add(_stockListTitleLabel, 0, 0);
+
+            Label hint = new Label();
+            hint.Text = "表头固定 · 列表内滚动";
+            hint.AutoSize = true;
+            hint.Anchor = AnchorStyles.Left;
+            hint.ForeColor = AppResources.Muted;
+            hint.Font = AppResources.Font(8F, FontStyle.Regular);
+            hint.Margin = AppResources.SPad(10, 0, 0, 0);
+            row.Controls.Add(hint, 1, 0);
+
+            Label shortcut = new Label();
+            shortcut.Text = "双击编辑";
+            shortcut.AutoSize = true;
+            shortcut.Anchor = AnchorStyles.Right;
+            shortcut.ForeColor = AppResources.Muted;
+            shortcut.Font = AppResources.Font(8F, FontStyle.Regular);
+            shortcut.Margin = Padding.Empty;
+            row.Controls.Add(shortcut, 2, 0);
+            return head;
         }
 
         private Control BuildDetailPanel()
@@ -913,6 +869,9 @@ namespace StockNotice
             grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
             grid.GridColor = AppResources.Border;
             grid.RowHeadersVisible = false;
+            // The column header stays pinned while the rows scroll; only the
+            // vertical scrollbar is needed because the columns fill the width.
+            grid.ScrollBars = ScrollBars.Vertical;
             grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
             grid.AllowUserToAddRows = false;
             grid.AllowUserToDeleteRows = false;
@@ -1063,7 +1022,9 @@ namespace StockNotice
             if (WindowState == FormWindowState.Minimized)
             {
                 Hide();
+                return;
             }
+            UpdateHeaderDensity();
         }
 
         private void MonitorButton_Click(object sender, EventArgs e)
@@ -1255,46 +1216,20 @@ namespace StockNotice
 
         private void RefreshTimeline()
         {
-            if (_timelineRows == null) return;
+            if (_timeline == null) return;
 
             DateTime today = MarketClock.Now().Date;
-            int shown = 0;
-            for (int i = 0; i < _state.History.Count && shown < _timelineRows.Length; i++)
+            List<TriggerRecord> todayRecords = new List<TriggerRecord>();
+            for (int i = 0; i < _state.History.Count; i++)
             {
                 TriggerRecord item = _state.History[i];
-                if (item.TriggeredAt.Date != today) continue;
-
-                _timelineTimes[shown].Text = item.TriggeredAt.ToString("HH:mm");
-                _timelineNames[shown].Text = item.StockName;
-                _timelineValues[shown].Text = AppResources.DirectionText(item.Direction)
-                    + " " + AppResources.FormatPercent(item.ChangePercent) + "%";
-                _timelineValues[shown].ForeColor = item.Direction == "up"
-                    ? AppResources.Up
-                    : AppResources.Down;
-                _timelineRows[shown].Tag = item.StockId;
-                _timelineRows[shown].Visible = true;
-                shown++;
+                if (item != null && item.TriggeredAt.Date == today) todayRecords.Add(item);
             }
-
-            for (int i = shown; i < _timelineRows.Length; i++)
+            todayRecords.Sort(delegate(TriggerRecord a, TriggerRecord b)
             {
-                _timelineRows[i].Visible = false;
-            }
-            _timelineEmptyLabel.Visible = shown == 0;
-        }
-
-        private void TimelineRow_Click(object sender, EventArgs e)
-        {
-            Control control = sender as Control;
-            if (control == null) return;
-
-            int index = control is Label
-                ? Convert.ToInt32(control.Tag)
-                : Array.IndexOf(_timelineRows, control);
-            if (index < 0 || index >= _timelineRows.Length) return;
-
-            string stockId = Convert.ToString(_timelineRows[index].Tag);
-            if (!string.IsNullOrEmpty(stockId)) SelectStock(stockId);
+                return b.TriggeredAt.CompareTo(a.TriggeredAt);
+            });
+            _timeline.SetItems(todayRecords, todayRecords.Count);
         }
 
         private void RefreshStockGrid()
@@ -1538,6 +1473,14 @@ namespace StockNotice
             _updateLabel.Text = _monitor.LastFetchAt == DateTime.MinValue
                 ? "--"
                 : AppResources.FormatTime(_monitor.LastFetchAt);
+            if (_stockListTitleLabel != null)
+            {
+                _stockListTitleLabel.Text = "自选 " + _state.Stocks.Count.ToString() + " 只";
+            }
+            if (_indexStrip != null)
+            {
+                _indexStrip.SetQuotes(_monitor.GetIndexQuotes());
+            }
             _providerLabel.Text = _monitor.ProviderName;
             RefreshDataHealth();
             _monitorButton.Text = _state.Settings.MonitoringEnabled ? "暂停监控" : "继续监控";
@@ -1547,13 +1490,33 @@ namespace StockNotice
                 AppResources.HeaderText);
 
             DateTime now = MarketClock.Now();
+            UpdateSessionPill(now);
+            UpdateSessionHint(now);
+            UpdateStatusDisplay(_monitor.StatusMessage);
+            _tray.Text = _state.Settings.MonitoringEnabled ? "股票涨跌提醒 · 监控中" : "股票涨跌提醒 · 已暂停";
+        }
+
+        private void UpdateSessionPill(DateTime now)
+        {
+            if (_sessionLabel == null) return;
+
             bool session = MarketClock.IsTradingSession(now);
             bool quiet = AlertPolicy.IsQuietTime(_state.Settings, now);
-            _sessionLabel.Text = quiet
-                ? "免打扰 · " + now.ToString("HH:mm:ss")
-                : session
-                ? (_state.Settings.MonitoringEnabled ? "交易中 · " : "已暂停 · ") + now.ToString("HH:mm:ss")
-                : MarketClock.GetSessionText(now);
+            string clock = _headerCompact ? string.Empty : " · " + now.ToString("HH:mm:ss");
+
+            if (quiet)
+            {
+                _sessionLabel.Text = "免打扰" + clock;
+            }
+            else if (session)
+            {
+                _sessionLabel.Text = (_state.Settings.MonitoringEnabled ? "交易中" : "已暂停") + clock;
+            }
+            else
+            {
+                _sessionLabel.Text = MarketClock.GetSessionText(now);
+            }
+
             _sessionLabel.PillColor = quiet
                 ? Color.FromArgb(82, 61, 26)
                 : (session && _state.Settings.MonitoringEnabled
@@ -1564,9 +1527,39 @@ namespace StockNotice
                 : (session && _state.Settings.MonitoringEnabled
                     ? Color.FromArgb(126, 240, 184)
                     : AppResources.HeaderMuted);
-            _sessionHintLabel.Text = "下一时段：" + MarketClock.GetNextSessionText(now);
-            UpdateStatusDisplay(_monitor.StatusMessage);
-            _tray.Text = _state.Settings.MonitoringEnabled ? "股票涨跌提醒 · 监控中" : "股票涨跌提醒 · 已暂停";
+        }
+
+        // The update clock moves into the status bar when the header runs in
+        // compact mode, so narrowing the window never hides it completely.
+        private void UpdateSessionHint(DateTime now)
+        {
+            if (_sessionHintLabel == null) return;
+
+            string text = "下一时段：" + MarketClock.GetNextSessionText(now);
+            if (_headerCompact)
+            {
+                string update = _monitor.LastFetchAt == DateTime.MinValue
+                    ? "--"
+                    : AppResources.FormatTime(_monitor.LastFetchAt);
+                text += " · 行情 " + update;
+            }
+            _sessionHintLabel.Text = text;
+        }
+
+        private void UpdateHeaderDensity()
+        {
+            if (_updateMetric == null) return;
+
+            float scale = AppResources.ScaleFactor > 0f ? AppResources.ScaleFactor : 1f;
+            int logicalWidth = (int)Math.Round(ClientSize.Width / scale);
+            bool compact = logicalWidth < 1340;
+            if (compact == _headerCompact) return;
+
+            _headerCompact = compact;
+            _updateMetric.Visible = !compact;
+            UpdateSessionPill(MarketClock.Now());
+            RefreshDataHealth();
+            UpdateSessionHint(MarketClock.Now());
         }
 
         private static void SetButtonGlyph(Button button, AppGlyph glyph, Color color)
@@ -1578,49 +1571,89 @@ namespace StockNotice
 
         private void RefreshDataHealth()
         {
-            if (_monitor.LastFetchAt == DateTime.MinValue)
+            if (_headerHealthPill == null) return;
+
+            if (_state.Stocks.Count == 0)
             {
-                _healthLabel.Text = "等待行情";
-                _healthLabel.ForeColor = AppResources.HeaderMuted;
-                SetHeaderHealth("等待行情", false);
+                SetHeaderHealthNeutral("暂无监控");
+                _toolTip.SetToolTip(_headerHealthPill, "没有监控股票，添加后开始获取行情");
                 return;
             }
+
+            if (_monitor.LastFetchAt == DateTime.MinValue)
+            {
+                SetHeaderHealthNeutral("等待行情");
+                _toolTip.SetToolTip(_headerHealthPill, "尚未取得行情");
+                return;
+            }
+
+            string provider = ShortProviderName(_monitor.ProviderName);
+            string text;
+            string full;
+            bool healthy;
 
             if (_monitor.ConsecutiveFailures > 0)
             {
-                _healthLabel.Text = "行情异常 · "
-                    + _monitor.ConsecutiveFailures.ToString() + " 次失败";
-                _healthLabel.ForeColor = Color.FromArgb(255, 142, 142);
-                SetHeaderHealth("行情异常 · "
-                    + _monitor.ConsecutiveFailures.ToString() + " 次失败", false);
-                return;
+                string failed = "行情异常 · " + _monitor.ConsecutiveFailures.ToString() + " 次失败";
+                text = _headerCompact ? "行情异常" : failed;
+                full = failed;
+                healthy = false;
             }
-
-            int age = _monitor.DataAgeSeconds;
-            if (_monitor.IsDataStale)
+            else if (_monitor.IsDataStale)
             {
                 DateTime now = MarketClock.Now();
                 if (!MarketClock.IsTradingSession(now))
                 {
-                    string session = MarketClock.GetSessionText(now);
-                    string closedText = session + " · " + AppResources.FormatTime(_monitor.LastFetchAt);
-                    _healthLabel.Text = closedText;
-                    _healthLabel.ForeColor = AppResources.HeaderMuted;
-                    SetHeaderHealth(closedText, true);
-                    return;
+                    string closed = MarketClock.GetSessionText(now);
+                    text = _headerCompact
+                        ? closed
+                        : closed + " · " + AppResources.FormatTime(_monitor.LastFetchAt);
+                    full = text;
+                    healthy = true;
                 }
-
-                _healthLabel.Text = "数据陈旧 · " + age.ToString() + " 秒前";
-                _healthLabel.ForeColor = Color.FromArgb(255, 142, 142);
-                SetHeaderHealth("数据陈旧 · " + age.ToString() + " 秒前", false);
-                return;
+                else
+                {
+                    int age = Math.Max(0, _monitor.DataAgeSeconds);
+                    string stale = "数据陈旧 · " + age.ToString() + " 秒前";
+                    text = _headerCompact ? "数据陈旧" : stale;
+                    full = stale;
+                    healthy = false;
+                }
+            }
+            else
+            {
+                int age = Math.Max(0, _monitor.DataAgeSeconds);
+                text = provider + " · 正常" + (_headerCompact ? string.Empty : " · " + age.ToString() + " 秒前");
+                full = provider + " · 正常 · " + age.ToString() + " 秒前";
+                healthy = true;
             }
 
-            _healthLabel.Text = "正常 · " + Math.Max(0, age).ToString() + " 秒前";
-            _healthLabel.ForeColor = AppResources.HeaderText;
-            SetHeaderHealth(
-                _monitor.ProviderName + " · 正常 · " + Math.Max(0, age).ToString() + " 秒前",
-                true);
+            SetHeaderHealth(text, healthy);
+            string tip = full;
+            if (!string.IsNullOrEmpty(_monitor.StatusMessage))
+            {
+                tip += Environment.NewLine + _monitor.StatusMessage;
+            }
+            _toolTip.SetToolTip(_headerHealthPill, tip);
+        }
+
+        private void SetHeaderHealthNeutral(string text)
+        {
+            _headerHealthPill.Text = text;
+            _headerHealthPill.PillColor = Color.FromArgb(31, 41, 55);
+            _headerHealthPill.ForeColor = AppResources.HeaderMuted;
+            _headerHealthPill.PillBorderColor = Color.FromArgb(55, 65, 81);
+            _headerHealthPill.DrawPillBorder = true;
+        }
+
+        private static string ShortProviderName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "行情";
+            if (name.StartsWith("AKShare", StringComparison.Ordinal)) return "AKShare";
+            if (name == "免费公开行情源") return "公开行情";
+            if (name == "演示数据") return "演示";
+            if (name == "腾讯行情") return "腾讯";
+            return name;
         }
 
         private void SetHeaderHealth(string text, bool healthy)
@@ -1813,6 +1846,21 @@ namespace StockNotice
             }
         }
 
+        private void Monitor_IndexQuotesUpdated(object sender, EventArgs e)
+        {
+            if (IsDisposed) return;
+            if (InvokeRequired)
+            {
+                BeginInvoke(new MethodInvoker(delegate { Monitor_IndexQuotesUpdated(sender, e); }));
+                return;
+            }
+
+            if (_indexStrip != null)
+            {
+                _indexStrip.SetQuotes(_monitor.GetIndexQuotes());
+            }
+        }
+
         private void Tray_BalloonTipClicked(object sender, EventArgs e)
         {
             if (!string.IsNullOrEmpty(_pendingNotificationStockId))
@@ -1832,24 +1880,8 @@ namespace StockNotice
         private void UiTimer_Tick(object sender, EventArgs e)
         {
             DateTime now = MarketClock.Now();
-            bool session = MarketClock.IsTradingSession(now);
-            bool quiet = AlertPolicy.IsQuietTime(_state.Settings, now);
-            _sessionLabel.Text = quiet
-                ? "免打扰 · " + now.ToString("HH:mm:ss")
-                : session
-                ? (_state.Settings.MonitoringEnabled ? "交易中 · " : "已暂停 · ") + now.ToString("HH:mm:ss")
-                : MarketClock.GetSessionText(now);
-            _sessionLabel.PillColor = quiet
-                ? Color.FromArgb(82, 61, 26)
-                : (session && _state.Settings.MonitoringEnabled
-                    ? Color.FromArgb(30, 77, 61)
-                    : Color.FromArgb(31, 41, 55));
-            _sessionLabel.ForeColor = quiet
-                ? Color.FromArgb(245, 196, 108)
-                : (session && _state.Settings.MonitoringEnabled
-                    ? Color.FromArgb(126, 240, 184)
-                    : AppResources.HeaderMuted);
-            _sessionHintLabel.Text = "下一时段：" + MarketClock.GetNextSessionText(now);
+            UpdateSessionPill(now);
+            UpdateSessionHint(now);
             if (DateTime.Now >= _alertBannerUntil)
             {
                 UpdateStatusDisplay(_monitor.StatusMessage);

@@ -60,6 +60,7 @@ namespace StockNotice
 
         private Timer _timer;
         private int _busy;
+        private int _indexBusy;
         private bool _initialDisplayDone;
         private bool _firstEvaluationForSession;
         private string _statusMessage;
@@ -77,6 +78,7 @@ namespace StockNotice
         public event EventHandler<TriggerEventArgs> TriggerRaised;
         public event EventHandler<MonitorSnapshotEventArgs> SnapshotUpdated;
         public event EventHandler<DailySummaryEventArgs> DailySummaryRaised;
+        public event EventHandler IndexQuotesUpdated;
 
         public MonitorService(AppState state, JsonStateStore store, MarketDataService marketData, RuleEngine ruleEngine)
         {
@@ -272,6 +274,38 @@ namespace StockNotice
             }
         }
 
+        // Indexes are supplementary: refresh them beside the stock poll so a
+        // slow benchmark endpoint can never delay alert evaluation.
+        private void QueueIndexRefresh()
+        {
+            if (Interlocked.CompareExchange(ref _indexBusy, 1, 0) != 0) return;
+            RefreshIndexQuotesAsync();
+        }
+
+        private async Task RefreshIndexQuotesAsync()
+        {
+            try
+            {
+                List<Quote> quotes = await SafeGetIndexQuotesAsync();
+                if (quotes == null || quotes.Count == 0) return;
+
+                lock (_sync)
+                {
+                    ApplyIndexQuotes(quotes);
+                }
+                EventHandler handler = IndexQuotesUpdated;
+                if (handler != null) handler(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warn("Index quote refresh failed: " + ex.Message);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _indexBusy, 0);
+            }
+        }
+
         public List<Quote> GetQuoteHistory(string stockId)
         {
             lock (_sync)
@@ -394,14 +428,12 @@ namespace StockNotice
             }
             RaiseSnapshot(true);
 
-            Task<List<Quote>> indexTask = SafeGetIndexQuotesAsync();
+            QueueIndexRefresh();
 
             if (snapshotStocks.Count == 0)
             {
-                List<Quote> indexQuotes = await indexTask;
                 lock (_sync)
                 {
-                    ApplyIndexQuotes(indexQuotes);
                     _statusMessage = "暂无监控股票";
                     _lastFetchAt = chinaNow;
                     _consecutiveFailures = 0;
@@ -411,7 +443,6 @@ namespace StockNotice
             }
 
             ProviderResult result = await _marketData.GetQuotesAsync(snapshotStocks);
-            List<Quote> fetchedIndexQuotes = await indexTask;
             Dictionary<string, Quote> received = new Dictionary<string, Quote>();
             for (int i = 0; i < result.Quotes.Count; i++)
             {
@@ -428,8 +459,6 @@ namespace StockNotice
 
             lock (_sync)
             {
-                ApplyIndexQuotes(fetchedIndexQuotes);
-
                 foreach (KeyValuePair<string, Quote> pair in received)
                 {
                     _quotes[pair.Key] = pair.Value;
