@@ -46,7 +46,24 @@ namespace StockNotice.Tests
                 if (quote.IsValid) hasValidQuote = true;
             }
 
-            return hasValidQuote ? 0 : 1;
+            // The header index strip is display-only, but it must still come from
+            // a real source; verify all three benchmarks resolve.
+            List<Quote> indexes = service.GetIndexQuotesAsync().GetAwaiter().GetResult();
+            Console.WriteLine("Index count: " + indexes.Count);
+            bool hasAllIndexes = indexes.Count == 3;
+            for (int i = 0; i < indexes.Count; i++)
+            {
+                Quote quote = indexes[i];
+                Console.WriteLine(
+                    "Index: " + quote.Code
+                    + " " + quote.Name
+                    + " price=" + quote.Price.ToString("0.###")
+                    + " change=" + quote.ChangePercent.ToString("0.###")
+                    + "% valid=" + quote.IsValid);
+                if (!quote.IsValid) hasAllIndexes = false;
+            }
+
+            return hasValidQuote && hasAllIndexes ? 0 : 1;
         }
     }
 }

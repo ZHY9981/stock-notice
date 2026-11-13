@@ -309,6 +309,7 @@ namespace StockNotice.Tests
             RunSessionChecks();
             RunDailySummaryChecks();
             RunQuoteHistoryChecks();
+            RunIndexChecks();
 
             Console.WriteLine();
             if (_failures == 0)
@@ -474,6 +475,59 @@ namespace StockNotice.Tests
             {
                 try { System.IO.Directory.Delete(directory, true); } catch { }
             }
+        }
+
+        private static void RunIndexChecks()
+        {
+            Check("index catalog has three benchmarks", IndexCatalog.All.Count, 3);
+            Check("index shanghai symbol", IndexCatalog.All[0].Symbol, "SH000001");
+            Check("index shenzhen symbol", IndexCatalog.All[1].Symbol, "SZ399001");
+            Check("index chinext symbol", IndexCatalog.All[2].Symbol, "SZ399006");
+            Check("index short name", IndexCatalog.All[2].DisplayName, "创业板");
+            Check("index full name", IndexCatalog.All[0].FullName, "上证指数");
+            Check("index lookup by market", IndexCatalog.Find(MarketNames.Shanghai, "000001").FullName, "上证指数");
+            Check("index lookup by code fallback", IndexCatalog.FindByCode("399001").DisplayName, "深成");
+
+            List<StockConfig> indexStocks = IndexCatalog.CreateStocks();
+            Check("index stocks created", indexStocks.Count, 3);
+            Check("index stock id", indexStocks[0].Id, "index-SH000001");
+
+            List<Quote> demoQuotes = IndexCatalog.CreateDemoQuotes(new DateTime(2026, 11, 4, 10, 0, 0));
+            Check("index demo quotes", demoQuotes.Count, 3);
+            Check("index demo quote valid", demoQuotes[0].IsValid, true);
+            Check("index demo gainer", demoQuotes[0].ChangePercent > 0m, true);
+            Check("index demo loser", demoQuotes[2].ChangePercent < 0m, true);
+
+            FakeQuoteProvider indexProvider = new FakeQuoteProvider();
+            indexProvider.Name = "index-source";
+            indexProvider.Result = new ProviderResult();
+            indexProvider.Result.ProviderName = "index-source";
+            // Providers can infer 000001 as Shenzhen; the catalog must repair it.
+            indexProvider.Result.Quotes.Add(IndexQuote("000001", MarketNames.Shenzhen, 3298.12m, 3284.32m));
+            indexProvider.Result.Quotes.Add(IndexQuote("399001", MarketNames.Shenzhen, 10512.30m, 10438.19m));
+            indexProvider.Result.Quotes.Add(IndexQuote("399006", MarketNames.Shenzhen, 2187.55m, 2190.18m));
+
+            List<IMarketQuoteProvider> indexProviders = new List<IMarketQuoteProvider>();
+            indexProviders.Add(indexProvider);
+            MarketDataService indexService = new MarketDataService(indexProviders);
+            List<Quote> fetchedIndexes = indexService.GetIndexQuotesAsync().GetAwaiter().GetResult();
+            Check("index fetch returns three", fetchedIndexes.Count, 3);
+            Check("index fetch repairs market", fetchedIndexes[0].Market, MarketNames.Shanghai);
+            Check("index fetch keeps price", fetchedIndexes[1].Price, 10512.30m);
+            Check("index fetch does not publish provider", indexService.LastProviderName, string.Empty);
+        }
+
+        private static Quote IndexQuote(string code, string market, decimal price, decimal previousClose)
+        {
+            Quote quote = new Quote();
+            quote.Code = code;
+            quote.Market = market;
+            quote.Price = price;
+            quote.PreviousClose = previousClose;
+            quote.ChangePercent = (price / previousClose - 1m) * 100m;
+            quote.Timestamp = new DateTime(2026, 11, 4, 10, 0, 0);
+            quote.IsValid = true;
+            return quote;
         }
 
         private static StockConfig SummaryStock(string id, string code, string name)
